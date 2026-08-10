@@ -73,7 +73,8 @@ export const updateVaultItemProgress = async (itemId, season, episode) => {
         const itemRef = doc(db, COLLECTION_NAME, itemId);
         await updateDoc(itemRef, {
             season,
-            episode
+            episode,
+            updatedAt: serverTimestamp()
         });
         return { success: true };
     } catch (error) {

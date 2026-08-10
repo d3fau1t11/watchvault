@@ -73,4 +73,17 @@ export const getRecommendations = async (id, type) => {
     return fetchWithCacheSilent(
         `${BASE_URL}/${type}/${id}/recommendations?api_key=${API_KEY}`
     );
-};
+};
+
+export const getWatchProviders = async (id, type) => {
+    // type must be 'movie' or 'tv'
+    return fetchWithCacheSilent(
+        `${BASE_URL}/${type}/${id}/watch/providers?api_key=${API_KEY}`
+    );
+};
+
+export const getTVDetailsWithAiring = async (id) => {
+    return fetchWithCache(
+        `${BASE_URL}/tv/${id}?api_key=${API_KEY}`
+    );
+};

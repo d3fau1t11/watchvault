@@ -100,7 +100,7 @@ a {
 .nav-brand {
   font-size: 1.5rem;
   font-weight: 700;
-  background: linear-gradient(135deg, #a5b4fc 0%, #6366f1 100%);
+  background: linear-gradient(135deg, #ff6b6b 0%, #e50914 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   letter-spacing: -0.5px;

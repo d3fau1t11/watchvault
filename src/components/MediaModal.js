@@ -1,10 +1,11 @@
 import { useEffect, useState, useRef } from "react";
-import { getMediaDetails, getPersonDetails, getSeasonDetails } from "../services/tmdbApi";
-import { addToVault, getVaultItems, updateVaultItemProgress, removeVaultItem } from "../services/firestoreService";
+import { getMediaDetails, getPersonDetails, getSeasonDetails, getWatchProviders } from "../services/tmdbApi";
+import { addToVault, updateVaultItemProgress, removeVaultItem } from "../services/firestoreService";
 import { useAuth } from "../context/AuthContext";
+import { useVault } from "../context/VaultContext";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { X, Star, Plus, Check, ArrowLeft, Calendar, Trash2 } from "lucide-react";
+import { X, Star, Plus, Check, ArrowLeft, Calendar, Trash2, PlayCircle } from "lucide-react";
 import YouTube from "react-youtube";
 
 function MediaModal({ media, onClose }) {
@@ -14,14 +15,14 @@ function MediaModal({ media, onClose }) {
     const [details, setDetails] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [vaultIds, setVaultIds] = useState(new Set());
-    const [vaultItems, setVaultItems] = useState([]);
     const [selectedSeason, setSelectedSeason] = useState(null);
     const [seasonEpisodes, setSeasonEpisodes] = useState([]);
     const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
     const [showLightbox, setShowLightbox] = useState(false);
+    const [watchProviders, setWatchProviders] = useState(null);
     const modalContentRef = useRef(null);
     const { currentUser } = useAuth();
+    const { vaultIds, vaultItems, isInVault, getVaultItem } = useVault();
     const navigate = useNavigate();
 
     // Reset internal state if the external prop changes
@@ -30,21 +31,13 @@ function MediaModal({ media, onClose }) {
     }, [media]);
 
     useEffect(() => {
-        if (currentUser) {
-            getVaultItems(currentUser.uid).then(data => {
-                setVaultItems(data);
-                setVaultIds(new Set(data.map(item => item.tmdbId)));
-            });
-        }
-    }, [currentUser]);
-
-    useEffect(() => {
         const fetchDetails = async () => {
             setLoading(true);
             setDetails(null);
             setError(null);
             setIsOverviewExpanded(false);
             setShowLightbox(false);
+            setWatchProviders(null);
             
             // Scroll back to top when media changes
             if (modalContentRef.current) {
@@ -60,6 +53,10 @@ function MediaModal({ media, onClose }) {
                 if (type === 'anime') type = 'tv'; // TMDb uses 'tv' for anime
                 const data = await getMediaDetails(currentMedia.tmdbId || currentMedia.id, type);
                 setDetails(data);
+                
+                // Fetch watch providers
+                const providers = await getWatchProviders(currentMedia.tmdbId || currentMedia.id, type);
+                setWatchProviders(providers);
                 
                 if ((type === 'tv' || type === 'anime') && data.seasons && data.seasons.length > 0) {
                     const nonZeroSeasons = data.seasons.filter(s => s.season_number > 0);
@@ -152,7 +149,7 @@ function MediaModal({ media, onClose }) {
             return;
         }
 
-        if (vaultIds.has(rec.id)) {
+        if (isInVault(rec.id)) {
             toast.error(`${rec.title || rec.name} is already in your vault!`);
             return;
         }
@@ -165,14 +162,13 @@ function MediaModal({ media, onClose }) {
         
         const response = await addToVault(currentUser.uid, itemToSave);
         if (response.success) {
-            setVaultIds(prev => new Set(prev).add(rec.id));
             toast.success(`${recTitle} added to your vault!`, { id: loadingToast });
         } else {
             toast.error("Failed to add to vault.", { id: loadingToast });
         }
     };
 
-    const isCurrentInVault = vaultIds.has(currentMedia.tmdbId || currentMedia.id);
+    const isCurrentInVault = isInVault(currentMedia.tmdbId || currentMedia.id);
 
     const handleAddCurrentToVault = async () => {
         if (!currentUser) {
@@ -192,8 +188,6 @@ function MediaModal({ media, onClose }) {
         
         const response = await addToVault(currentUser.uid, itemToSave);
         if (response.success) {
-            setVaultIds(prev => new Set(prev).add(currentMedia.tmdbId || currentMedia.id));
-            setVaultItems(prev => [...prev, { ...itemToSave, id: response.id, season: 1, episode: 0, status: "Plan to Watch", tmdbId: currentMedia.tmdbId || currentMedia.id }]);
             toast.success(`${recTitle} added to your vault!`, { id: loadingToast });
         } else {
             toast.error("Failed to add to vault.", { id: loadingToast });
@@ -202,7 +196,7 @@ function MediaModal({ media, onClose }) {
 
     const handleRemoveCurrentFromVault = async () => {
         const itemId = currentMedia.tmdbId || currentMedia.id;
-        const vaultItem = vaultItems.find(vi => vi.tmdbId === itemId);
+        const vaultItem = getVaultItem(itemId);
         if (!vaultItem) return;
 
         const recTitle = currentMedia.title || currentMedia.name;
@@ -210,12 +204,6 @@ function MediaModal({ media, onClose }) {
 
         const response = await removeVaultItem(vaultItem.id);
         if (response.success) {
-            setVaultIds(prev => {
-                const next = new Set(prev);
-                next.delete(itemId);
-                return next;
-            });
-            setVaultItems(prev => prev.filter(vi => vi.id !== vaultItem.id));
             toast.success(`${recTitle} removed from your vault!`, { id: loadingToast });
         } else {
             toast.error("Failed to remove from vault.", { id: loadingToast });
@@ -393,6 +381,66 @@ function MediaModal({ media, onClose }) {
                                 </div>
                             )}
 
+                            {/* Watch Providers Section */}
+                            {!isPerson && watchProviders && watchProviders.results && watchProviders.results.US && (
+                                <div style={{ marginBottom: '20px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                        <PlayCircle size={16} />
+                                        <span>Watch on</span>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                        {watchProviders.results.US.flatrate && watchProviders.results.US.flatrate.map((provider, index) => (
+                                            <div 
+                                                key={index}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    background: 'rgba(255, 255, 255, 0.05)',
+                                                    padding: '8px 12px',
+                                                    borderRadius: '8px',
+                                                    border: '1px solid rgba(255, 255, 255, 0.1)'
+                                                }}
+                                                title={provider.provider_name}
+                                            >
+                                                <img 
+                                                    src={`https://image.tmdb.org/t/p/w92${provider.logo_path}`} 
+                                                    alt={provider.provider_name}
+                                                    style={{ width: '32px', height: '32px', borderRadius: '4px' }}
+                                                />
+                                                <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>{provider.provider_name}</span>
+                                            </div>
+                                        ))}
+                                        {watchProviders.results.US.buy && watchProviders.results.US.buy.map((provider, index) => (
+                                            <div 
+                                                key={`buy-${index}`}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    background: 'rgba(255, 255, 255, 0.05)',
+                                                    padding: '8px 12px',
+                                                    borderRadius: '8px',
+                                                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                                                    opacity: 0.7
+                                                }}
+                                                title={`Buy on ${provider.provider_name}`}
+                                            >
+                                                <img 
+                                                    src={`https://image.tmdb.org/t/p/w92${provider.logo_path}`} 
+                                                    alt={provider.provider_name}
+                                                    style={{ width: '32px', height: '32px', borderRadius: '4px' }}
+                                                />
+                                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{provider.provider_name} (Buy)</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                                    ))}
+                                </div>
+                            )}
+
                             {details?.next_episode_to_air && (
                                 <div style={{
                                     display: 'flex',
@@ -470,7 +518,7 @@ function MediaModal({ media, onClose }) {
                                         <div style={{ color: 'var(--text-secondary)' }}>Loading episodes...</div>
                                     ) : (
                                         seasonEpisodes.map(ep => {
-                                            const currentVaultItem = vaultItems.find(item => item.tmdbId === (currentMedia.tmdbId || currentMedia.id));
+                                            const currentVaultItem = getVaultItem(currentMedia.tmdbId || currentMedia.id);
                                             
                                             // An episode is considered "watched" if the user is on a later season, 
                                             // or if they are on the same season and the current episode is <= their tracked episode.
@@ -608,7 +656,7 @@ function MediaModal({ media, onClose }) {
                                                     <div className="recommendation-poster-fallback">No Img</div>
                                                 )}
                                                 <div className="recommendation-overlay">
-                                                    {vaultIds.has(rec.id) ? (
+                                                    {isInVault(rec.id) ? (
                                                         <div style={{ background: '#22c55e', color: 'white', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                             <Check size={20} />
                                                         </div>
@@ -652,7 +700,7 @@ function MediaModal({ media, onClose }) {
                                                     <div className="recommendation-poster-fallback">No Img</div>
                                                 )}
                                                 <div className="recommendation-overlay">
-                                                    {vaultIds.has(rec.id) ? (
+                                                    {isInVault(rec.id) ? (
                                                         <div style={{ background: '#22c55e', color: 'white', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                             <Check size={20} />
                                                         </div>

@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
+import { VaultProvider } from "./context/VaultContext";
 import { Toaster } from "react-hot-toast";
 import Navbar from "./components/Navbar";
 
@@ -13,19 +14,20 @@ const Stats = lazy(() => import("./pages/Stats"));
 function App() {
     return (
         <AuthProvider>
-            <Router>
-                <div className="App">
-                    <Toaster 
-                        position="bottom-right" 
-                        toastOptions={{
-                            style: {
-                                background: '#1a0000',
-                                color: '#f8fafc',
-                                border: '1px solid rgba(229, 9, 20, 0.3)'
-                            }
-                        }} 
-                    />
-                    <Navbar />
+            <VaultProvider>
+                <Router>
+                    <div className="App">
+                        <Toaster 
+                            position="bottom-right" 
+                            toastOptions={{
+                                style: {
+                                    background: '#1a0000',
+                                    color: '#f8fafc',
+                                    border: '1px solid rgba(229, 9, 20, 0.3)'
+                                }
+                            }} 
+                        />
+                        <Navbar />
                     <Suspense fallback={
                         <div style={{
                             display: 'flex',
@@ -62,6 +64,7 @@ function App() {
                     </Suspense>
                 </div>
             </Router>
+            </VaultProvider>
         </AuthProvider>
     );
 }

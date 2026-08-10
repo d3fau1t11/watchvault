@@ -1,39 +1,20 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "../context/AuthContext";
-import { getVaultItems } from "../services/firestoreService";
+import { useVault } from "../context/VaultContext";
 import { useNavigate } from "react-router-dom";
+import EmptyState from "../components/EmptyState";
 import { BarChart3, TrendingUp, Clock, Library } from "lucide-react";
 
 function Stats() {
     const { currentUser } = useAuth();
+    const { vaultItems, loading: vaultLoading, getWatchingItems } = useVault();
     const navigate = useNavigate();
-    const [items, setItems] = useState([]);
-    const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        if (!currentUser) {
-            navigate("/login");
-            return;
-        }
 
-        const fetchVaultData = async () => {
-            setLoading(true);
-            try {
-                const vaultData = await getVaultItems(currentUser.uid);
-                setItems(vaultData);
-            } catch (err) {
-                console.error("Failed to fetch vault items for stats", err);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchVaultData();
-    }, [currentUser, navigate]);
 
     // Dynamic Watchlist Analytics Calculations
     const stats = useMemo(() => {
-        const total = items.length;
+        const total = vaultItems.length;
         if (total === 0) {
             return {
                 total: 0,
@@ -49,20 +30,20 @@ function Stats() {
             };
         }
 
-        const moviesCount = items.filter(item => item.type === 'movie').length;
-        const tvCount = items.filter(item => item.type === 'tv').length;
-        const animeCount = items.filter(item => item.type === 'anime').length;
+        const moviesCount = vaultItems.filter(item => item.type === 'movie').length;
+        const tvCount = vaultItems.filter(item => item.type === 'tv').length;
+        const animeCount = vaultItems.filter(item => item.type === 'anime').length;
 
-        const completed = items.filter(item => item.status === 'Completed').length;
-        const watching = items.filter(item => item.status === 'Watching').length;
-        const planToWatch = items.filter(item => item.status === 'Plan to Watch').length;
+        const completed = vaultItems.filter(item => item.status === 'Completed').length;
+        const watching = vaultItems.filter(item => item.status === 'Watching').length;
+        const planToWatch = vaultItems.filter(item => item.status === 'Plan to Watch').length;
 
         const completionRate = Math.round((completed / total) * 100);
 
         let totalMinutes = 0;
         const watchingList = [];
 
-        items.forEach(item => {
+        vaultItems.forEach(item => {
             if (item.type === 'movie') {
                 if (item.status === 'Completed') totalMinutes += 120;
                 else if (item.status === 'Watching') {
@@ -99,9 +80,9 @@ function Stats() {
             hoursWatched,
             watchingList: watchingList.slice(0, 6) // Display top 6 currently watching trackers
         };
-    }, [items]);
+    }, [vaultItems]);
 
-    if (loading) {
+    if (vaultLoading) {
         return (
             <div className="page container" style={{ textAlign: "center", padding: "100px 0" }}>
                 <style>{`
@@ -160,22 +141,13 @@ function Stats() {
             </div>
 
             {items.length === 0 ? (
-                <div style={{
-                    background: "var(--bg-glass)",
-                    backdropFilter: "blur(20px)",
-                    border: "var(--glass-border)",
-                    borderRadius: "16px",
-                    padding: "48px 32px",
-                    textAlign: "center",
-                    boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.2)"
-                }}>
-                    <Library size={48} color="var(--text-secondary)" style={{ marginBottom: "16px", opacity: 0.6 }} />
-                    <h3 style={{ margin: "0 0 8px 0", color: "var(--text-primary)" }}>Your stats profile is empty!</h3>
-                    <p style={{ color: "var(--text-secondary)", margin: "0 0 24px 0", fontSize: "0.9rem", maxWidth: "480px", marginLeft: "auto", marginRight: "auto" }}>
-                        Add titles (movies, series, or anime) to your Vault and mark them as Completed or Watching, and we will automatically compile comprehensive progress reports!
-                    </p>
-                    <button className="btn" onClick={() => navigate("/")}>Explore & Search Titles</button>
-                </div>
+                <EmptyState 
+                    icon="library"
+                    title="Your stats profile is empty!"
+                    message="Add titles (movies, series, or anime) to your Vault and mark them as Completed or Watching, and we will automatically compile comprehensive progress reports!"
+                    actionText="Explore & Search Titles"
+                    onAction={() => navigate("/")}
+                />
             ) : (
                 <div style={{
                     display: 'grid',

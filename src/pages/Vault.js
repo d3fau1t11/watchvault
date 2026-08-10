@@ -1,22 +1,70 @@
 import { useState, useEffect, useMemo, useRef, lazy, Suspense } from "react";
 import { useAuth } from "../context/AuthContext";
-import { getVaultItems, updateVaultItemStatus, updateVaultItemType, removeVaultItem, addToVault, clearVault, updateVaultItemProgress } from "../services/firestoreService";
-import { searchMedia } from "../services/tmdbApi";
+import { useVault } from "../context/VaultContext";
+import { updateVaultItemStatus, updateVaultItemType, removeVaultItem, addToVault, clearVault, updateVaultItemProgress } from "../services/firestoreService";
+import { searchMedia, getTVDetailsWithAiring } from "../services/tmdbApi";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import VaultItem from "../components/VaultItem";
-import { Upload, Download, Search, Trash2, Filter } from "lucide-react";
+import FilterTabs from "../components/FilterTabs";
+import EmptyState from "../components/EmptyState";
+import { Upload, Download, Search, Trash2, Filter, Calendar } from "lucide-react";
 
 const MediaModal = lazy(() => import("../components/MediaModal"));
 
 function Vault() {
     const { currentUser } = useAuth();
+    const { vaultItems, loading: vaultLoading, getVaultItem } = useVault();
     const navigate = useNavigate();
-    const [items, setItems] = useState([]);
-    const [loading, setLoading] = useState(true);
     const [selectedMedia, setSelectedMedia] = useState(null);
     const fileInputRef = useRef(null);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
+    const [airingThisWeek, setAiringThisWeek] = useState([]);
+
+    // Fetch airing this week data
+    useEffect(() => {
+        const fetchAiringThisWeek = async () => {
+            if (!currentUser || vaultItems.length === 0) {
+                setAiringThisWeek([]);
+                return;
+            }
+
+            const tvShows = vaultItems.filter(item => 
+                (item.type === 'tv' || item.type === 'anime') && item.status === 'Watching'
+            );
+
+            if (tvShows.length === 0) {
+                setAiringThisWeek([]);
+                return;
+            }
+
+            const now = new Date();
+            const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+            const airingShows = [];
+
+            for (const show of tvShows) {
+                try {
+                    const details = await getTVDetailsWithAiring(show.tmdbId);
+                    if (details?.next_episode_to_air) {
+                        const nextAirDate = new Date(details.next_episode_to_air.air_date);
+                        if (nextAirDate >= now && nextAirDate <= nextWeek) {
+                            airingShows.push({
+                                ...show,
+                                nextEpisode: details.next_episode_to_air
+                            });
+                        }
+                    }
+                } catch (err) {
+                    console.error('Failed to fetch airing data for', show.title, err);
+                }
+            }
+
+            setAiringThisWeek(airingShows);
+        };
+
+        fetchAiringThisWeek();
+    }, [currentUser, vaultItems]);
 
     useEffect(() => {
         const handleOnline = () => setIsOnline(true);
@@ -34,25 +82,11 @@ function Vault() {
     const [filterType, setFilterType] = useState("all");
     const [filterStatus, setFilterStatus] = useState("all");
     const [sortBy, setSortBy] = useState("date_desc");
-    useEffect(() => {
-        if (!currentUser) {
-            navigate("/login");
-            return;
-        }
 
-        const fetchItems = async () => {
-            const data = await getVaultItems(currentUser.uid);
-            setItems(data);
-            setLoading(false);
-        };
-
-        fetchItems();
-    }, [currentUser, navigate]);
 
     const handleUpdateStatus = async (id, newStatus) => {
         const response = await updateVaultItemStatus(id, newStatus);
         if (response.success) {
-            setItems(items.map(item => item.id === id ? { ...item, status: newStatus } : item));
             toast.success("Status updated!");
         } else {
             toast.error("Failed to update status.");
@@ -62,7 +96,6 @@ function Vault() {
     const handleUpdateType = async (id, newType) => {
         const response = await updateVaultItemType(id, newType);
         if (response.success) {
-            setItems(items.map(item => item.id === id ? { ...item, type: newType } : item));
             toast.success("Type classification updated!");
         } else {
             toast.error("Failed to update type.");
@@ -72,7 +105,7 @@ function Vault() {
     const handleUpdateProgress = async (id, season, episode) => {
         const response = await updateVaultItemProgress(id, season, episode);
         if (response.success) {
-            setItems(items.map(item => item.id === id ? { ...item, season, episode } : item));
+            // Real-time sync will handle the update
         } else {
             toast.error("Failed to update progress.");
         }
@@ -83,7 +116,6 @@ function Vault() {
         const loadingToast = toast.loading("Removing item...");
         const response = await removeVaultItem(id);
         if (response.success) {
-            setItems(items.filter(item => item.id !== id));
             toast.success("Item removed from vault.", { id: loadingToast });
         } else {
             toast.error("Failed to remove item.", { id: loadingToast });
@@ -116,7 +148,6 @@ function Vault() {
         const loadingToast = toast.loading("Clearing vault...");
         const response = await clearVault(currentUser.uid);
         if (response.success) {
-            setItems([]);
             toast.success("Vault has been completely cleared.", { id: loadingToast });
         } else {
             toast.error("Failed to clear vault.", { id: loadingToast });
@@ -124,7 +155,7 @@ function Vault() {
     };
 
     const handleClearVault = () => {
-        if (items.length === 0) return;
+        if (vaultItems.length === 0) return;
         
         toast.custom((t) => (
             <div style={{ 
@@ -200,11 +231,7 @@ function Vault() {
 
                 toast.success(`Import complete! Added ${successCount} items.`, { id: loadingToast });
                 
-                // Refetch items
-                setLoading(true);
-                const data = await getVaultItems(currentUser.uid);
-                setItems(data);
-                setLoading(false);
+                // Real-time sync will handle the new items
             } catch (error) {
                 toast.error("Failed to parse JSON file.");
             }
@@ -214,14 +241,14 @@ function Vault() {
     };
 
     const handleExport = () => {
-        if (items.length === 0) {
+        if (vaultItems.length === 0) {
             toast.error("Nothing to export!");
             return;
         }
         const exportData = {
             exportedAt: new Date().toISOString(),
-            total: items.length,
-            items: items.map(item => ({
+            total: vaultItems.length,
+            items: vaultItems.map(item => ({
                 title: item.title,
                 type: item.type,
                 status: item.status,
@@ -243,7 +270,7 @@ function Vault() {
     };
 
     const filteredAndSortedItems = useMemo(() => {
-        let result = [...items];
+        let result = [...vaultItems];
 
         // Search Query Filter
         if (searchQuery.trim() !== "") {
@@ -274,25 +301,13 @@ function Vault() {
         });
 
         return result;
-    }, [items, searchQuery, filterType, filterStatus, sortBy]);
+    }, [vaultItems, searchQuery, filterType, filterStatus, sortBy]);
 
-    if (loading) {
+    if (vaultLoading) {
         return <div className="page container" style={{ textAlign: "center" }}>Loading your vault...</div>;
     }
 
-    // Custom tab style
-    const getTabStyle = (type) => ({
-        padding: '8px 16px',
-        borderRadius: '20px',
-        border: 'none',
-        background: filterType === type ? 'var(--accent-primary)' : 'rgba(255, 255, 255, 0.05)',
-        color: filterType === type ? '#fff' : 'var(--text-secondary)',
-        cursor: 'pointer',
-        fontWeight: 600,
-        transition: 'all 0.2s',
-        marginRight: '8px',
-        outline: 'none'
-    });
+
 
     return (
         <div className="page container">
@@ -319,7 +334,7 @@ function Vault() {
                         className="btn btn-outline" 
                         onClick={handleClearVault} 
                         style={{ fontSize: '0.9rem', padding: '8px 12px', color: '#f87171', borderColor: 'rgba(248, 113, 113, 0.3)' }}
-                        disabled={items.length === 0}
+                        disabled={vaultItems.length === 0}
                     >
                         <Trash2 size={16} /> Clear Vault
                     </button>
@@ -364,19 +379,107 @@ function Vault() {
             </div>
 
             {/* Modern Tab Navigation */}
-            <div style={{ display: 'flex', marginBottom: '24px', overflowX: 'auto', paddingBottom: '8px' }}>
-                <button style={getTabStyle('all')} onClick={() => setFilterType('all')}>All Collection</button>
-                <button style={getTabStyle('movie')} onClick={() => setFilterType('movie')}>Movies</button>
-                <button style={getTabStyle('tv')} onClick={() => setFilterType('tv')}>TV Series</button>
-                <button style={getTabStyle('anime')} onClick={() => setFilterType('anime')}>Anime</button>
-            </div>
-            
-            {items.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "60px 0", background: "var(--bg-secondary)", borderRadius: "12px", border: "var(--glass-border)" }}>
-                    <h3 style={{ marginBottom: "16px" }}>Your vault is empty</h3>
-                    <p style={{ color: "var(--text-secondary)", marginBottom: "24px" }}>Start searching to add movies and TV shows to your watchlist.</p>
-                    <button className="btn" onClick={() => navigate("/")}>Go to Search</button>
+            <FilterTabs 
+                options={[
+                    { value: 'all', label: 'All Collection' },
+                    { value: 'movie', label: 'Movies' },
+                    { value: 'tv', label: 'TV Series' },
+                    { value: 'anime', label: 'Anime' }
+                ]}
+                activeOption={filterType}
+                onChange={setFilterType}
+            />
+
+            {/* Airing This Week Section */}
+            {airingThisWeek.length > 0 && (
+                <div style={{ marginBottom: '30px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+                        <Calendar size={20} style={{ color: 'var(--accent-primary)' }} />
+                        <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 600 }}>Airing This Week</h3>
+                    </div>
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                        gap: '16px'
+                    }}>
+                        {airingThisWeek.map((item) => (
+                            <div 
+                                key={item.id}
+                                onClick={() => setSelectedMedia(item)}
+                                style={{
+                                    background: 'var(--bg-secondary)',
+                                    border: '1px solid rgba(229, 9, 20, 0.2)',
+                                    borderRadius: '12px',
+                                    padding: '16px',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s ease',
+                                    boxShadow: 'var(--shadow-sm)'
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                                    e.currentTarget.style.transform = 'translateY(-2px)';
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = 'var(--bg-secondary)';
+                                    e.currentTarget.style.transform = 'translateY(0)';
+                                }}
+                            >
+                                <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+                                    <img 
+                                        src={item.poster ? `https://image.tmdb.org/t/p/w200${item.poster}` : 'https://via.placeholder.com/80x120?text=No+Poster'}
+                                        alt={item.title}
+                                        style={{
+                                            width: '60px',
+                                            height: '90px',
+                                            objectFit: 'cover',
+                                            borderRadius: '6px',
+                                            flexShrink: 0
+                                        }}
+                                    />
+                                    <div style={{ flex: 1 }}>
+                                        <h4 style={{ margin: '0 0 6px 0', fontSize: '0.95rem', fontWeight: 600, lineHeight: 1.3 }}>
+                                            {item.title}
+                                        </h4>
+                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                                            {item.type === 'anime' ? 'Anime' : 'TV Series'}
+                                        </div>
+                                        <div style={{ 
+                                            fontSize: '0.8rem', 
+                                            color: '#fbbf24',
+                                            fontWeight: 500 
+                                        }}>
+                                            S{item.nextEpisode.season_number} E{item.nextEpisode.episode_number}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style={{ 
+                                    fontSize: '0.85rem', 
+                                    color: 'var(--text-secondary)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px'
+                                }}>
+                                    <Calendar size={14} />
+                                    {new Date(item.nextEpisode.air_date).toLocaleDateString('en-US', { 
+                                        weekday: 'short', 
+                                        month: 'short', 
+                                        day: 'numeric' 
+                                    })}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 </div>
+            )}
+            
+            {vaultItems.length === 0 ? (
+                <EmptyState 
+                    icon="library"
+                    title="Your vault is empty"
+                    message="Start searching to add movies, TV shows, and anime to your watchlist."
+                    actionText="Explore & Search Titles"
+                    onAction={() => navigate("/")}
+                />
             ) : (
                 <>
                     <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '24px', background: 'var(--bg-secondary)', padding: '16px', borderRadius: '12px', border: 'var(--glass-border)', alignItems: 'center' }}>

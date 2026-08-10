@@ -1,17 +1,20 @@
 import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { useAuth } from "../context/AuthContext";
-import { getVaultItems, addToVault } from "../services/firestoreService";
+import { useVault } from "../context/VaultContext";
+import { addToVault } from "../services/firestoreService";
 import { getRecommendations } from "../services/tmdbApi";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import FilterTabs from "../components/FilterTabs";
+import EmptyState from "../components/EmptyState";
 import { Sparkles, Plus, Info, Star, ChevronDown } from "lucide-react";
 
 const MediaModal = lazy(() => import("../components/MediaModal"));
 
 function Recommendations() {
     const { currentUser } = useAuth();
+    const { vaultItems, loading: vaultLoading, isInVault } = useVault();
     const navigate = useNavigate();
-    const [vaultItems, setVaultItems] = useState([]);
     const [personalizedRecs, setPersonalizedRecs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [selectedMedia, setSelectedMedia] = useState(null);
@@ -41,14 +44,10 @@ function Recommendations() {
         const fetchWatchlistRecommendations = async () => {
             setLoading(true);
             try {
-                // 1. Fetch user's vault items
-                const items = await getVaultItems(currentUser.uid);
-                setVaultItems(items);
-
-                if (items.length > 0) {
+                if (vaultItems.length > 0) {
                     // Filter completed or active items as seeds
-                    const activeItems = items.filter(item => item.status === 'Completed' || item.status === 'Watching');
-                    const targetItems = activeItems.length > 0 ? activeItems : items;
+                    const activeItems = vaultItems.filter(item => item.status === 'Completed' || item.status === 'Watching');
+                    const targetItems = activeItems.length > 0 ? activeItems : vaultItems;
 
                     // Sort by recency and take up to 4 seed items to expand initial suggestions pool
                     const seeds = [...targetItems]
@@ -56,7 +55,7 @@ function Recommendations() {
                         .slice(0, 4);
                     
                     let combined = [];
-                    const vaultTmdbIds = new Set(items.map(i => i.tmdbId));
+                    const vaultTmdbIds = new Set(vaultItems.map(i => i.tmdbId));
 
                     // Fetch recommendations for each seed item
                     for (const seed of seeds) {
@@ -99,7 +98,7 @@ function Recommendations() {
         };
 
         fetchWatchlistRecommendations();
-    }, [currentUser, navigate]);
+    }, [currentUser, navigate, vaultItems]);
 
     // Handle filter type toggle (resets visual pagination)
     const handleFilterChange = (type) => {
@@ -144,29 +143,15 @@ function Recommendations() {
             // Remove the added item from the recommendations list dynamically so the user gets fresh cards
             setPersonalizedRecs(prev => prev.filter(r => r.id !== media.id));
             
-            // Also append to local vault state checklist
-            setVaultItems(prev => [...prev, { tmdbId: media.id }]);
+            // Real-time sync will handle adding to vault
         } else {
             toast.error("Failed to add item.", { id: loadingToast });
         }
     };
 
-    // Navigation tab link styling utility
-    const getTabStyle = (type) => ({
-        padding: '8px 18px',
-        borderRadius: '20px',
-        border: 'none',
-        background: filterType === type ? 'var(--accent-primary)' : 'rgba(255, 255, 255, 0.05)',
-        color: filterType === type ? '#fff' : 'var(--text-secondary)',
-        cursor: 'pointer',
-        fontWeight: 600,
-        transition: 'all 0.2s ease',
-        marginRight: '10px',
-        outline: 'none',
-        fontSize: '0.85rem'
-    });
 
-    if (loading) {
+
+    if (loading || vaultLoading) {
         return (
             <div className="page container" style={{ textAlign: "center", padding: "100px 0" }}>
                 <style>{`
@@ -413,11 +398,15 @@ function Recommendations() {
             {/* RECOMMENDATIONS HUD NAVIGATION & FILTER TABS */}
             {personalizedRecs.length > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
-                    <div style={{ display: 'flex', overflowX: 'auto', paddingBottom: '4px' }}>
-                        <button style={getTabStyle('all')} onClick={() => handleFilterChange('all')}>All Matches</button>
-                        <button style={getTabStyle('movie')} onClick={() => handleFilterChange('movie')}>Movies</button>
-                        <button style={getTabStyle('tv')} onClick={() => handleFilterChange('tv')}>TV Series</button>
-                    </div>
+                    <FilterTabs 
+                        options={[
+                            { value: 'all', label: 'All Matches' },
+                            { value: 'movie', label: 'Movies' },
+                            { value: 'tv', label: 'TV Series' }
+                        ]}
+                        activeOption={filterType}
+                        onChange={handleFilterChange}
+                    />
                     
                     <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
                         Showing {Math.min(visibleCount, filteredRecommendations.length)} of {filteredRecommendations.length} Curated Matches
@@ -458,27 +447,21 @@ function Recommendations() {
                 </div>
             ) : (
                 /* Empty state warning/educational block if watchlist has no items yet */
-                vaultItems.length === 0 ? (
-                    <div style={{
-                        background: "var(--bg-glass)",
-                        backdropFilter: "blur(20px)",
-                        border: "var(--glass-border)",
-                        borderRadius: "16px",
-                        padding: "32px",
-                        textAlign: "center",
-                        marginBottom: "40px"
-                    }}>
-                        <h3 style={{ margin: "0 0 8px 0", color: "var(--text-primary)" }}>Your watchlist is empty!</h3>
-                        <p style={{ color: "var(--text-secondary)", margin: "0 0 20px 0", fontSize: "0.9rem" }}>
-                            Add movies and TV series to your Vault and mark them as Completed or Watching, and we will unlock hyper-personalized matches!
-                        </p>
-                        <button className="btn" onClick={() => navigate("/")}>Go search items</button>
-                    </div>
+                vaultItems.length === 0 && !loading ? (
+                    <EmptyState 
+                        icon="library"
+                        title="Your watchlist is empty!"
+                        message="Add movies and TV series to your Vault and mark them as Completed or Watching, and we will unlock hyper-personalized matches!"
+                        actionText="Go search items"
+                        onAction={() => navigate("/")}
+                    />
                 ) : (
                     /* If active items filters are empty */
-                    <div style={{ textAlign: "center", padding: "60px 0", background: "var(--bg-secondary)", borderRadius: "12px", border: "var(--glass-border)", marginBottom: "40px" }}>
-                        <p style={{ color: "var(--text-secondary)", margin: 0 }}>No recommendations found matching this classification.</p>
-                    </div>
+                    <EmptyState 
+                        icon="search"
+                        title="No recommendations found"
+                        message="Try adding more titles to your vault or mark some as Completed/Watching to improve recommendations."
+                    />
                 )
             )}
 
