@@ -2,7 +2,9 @@ import { Plus, Check } from "lucide-react";
 
 function MediaCard({ item, onAdd, onClick, isAdded }) {
     const posterUrl = item.poster_path
-        ? `https://image.tmdb.org/t/p/w342${item.poster_path}`
+        ? (item.poster_path.startsWith("http://") || item.poster_path.startsWith("https://")
+            ? item.poster_path
+            : `https://image.tmdb.org/t/p/w342${item.poster_path}`)
         : null;
 
     const title = item.title || item.name;
@@ -21,7 +23,13 @@ function MediaCard({ item, onAdd, onClick, isAdded }) {
             </div>
             <div className="media-info">
                 <div className="media-meta">
-                    <span className="media-type">{(item.media_type || item.type) === "tv" ? "TV Series" : (item.media_type || item.type)}</span>
+                    <span className="media-type">
+                        {(item.type === "anime" || item.media_type === "anime") 
+                            ? "Anime" 
+                            : (item.media_type || item.type) === "tv" 
+                                ? "TV Series" 
+                                : (item.media_type || item.type)}
+                    </span>
                     <span>{year}</span>
                 </div>
                 <h3 className="media-title">{title}</h3>

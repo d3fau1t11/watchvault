@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { getMediaDetails, getPersonDetails, getSeasonDetails, getWatchProviders } from "../services/tmdbApi";
-import { addToVault, updateVaultItemProgress, removeVaultItem } from "../services/firestoreService";
+import { getAnimeById } from "../services/anilistApi";
+import { addToVault, updateVaultItemProgress, removeVaultItem, updateVaultItemStatus } from "../services/firestoreService";
 import { useAuth } from "../context/AuthContext";
 import { useVault } from "../context/VaultContext";
 import { useNavigate } from "react-router-dom";
@@ -46,26 +47,64 @@ function MediaModal({ media, onClose }) {
 
             try {
                 if (currentMedia.media_type === 'person' || currentMedia.type === 'person') {
-                const data = await getPersonDetails(currentMedia.id);
-                setDetails(data);
-            } else if (currentMedia.media_type === 'movie' || currentMedia.media_type === 'tv' || currentMedia.type === 'movie' || currentMedia.type === 'tv' || currentMedia.type === 'anime') {
-                let type = currentMedia.media_type || currentMedia.type;
-                if (type === 'anime') type = 'tv'; // TMDb uses 'tv' for anime
-                const data = await getMediaDetails(currentMedia.tmdbId || currentMedia.id, type);
-                setDetails(data);
-                
-                // Fetch watch providers
-                const providers = await getWatchProviders(currentMedia.tmdbId || currentMedia.id, type);
-                setWatchProviders(providers);
-                
-                if ((type === 'tv' || type === 'anime') && data.seasons && data.seasons.length > 0) {
-                    const nonZeroSeasons = data.seasons.filter(s => s.season_number > 0);
-                    const defaultSeason = nonZeroSeasons.length > 0 ? nonZeroSeasons[0].season_number : data.seasons[0].season_number;
-                    setSelectedSeason(defaultSeason);
-                } else {
-                    setSelectedSeason(null);
+                    const data = await getPersonDetails(currentMedia.id);
+                    setDetails(data);
+                } else if (currentMedia.media_type === 'movie' || currentMedia.media_type === 'tv' || currentMedia.type === 'movie' || currentMedia.type === 'tv' || currentMedia.type === 'anime') {
+                    let type = currentMedia.type === 'anime' || currentMedia.media_type === 'anime' ? 'anime' : (currentMedia.media_type || currentMedia.type);
+                    if (type === 'anime') {
+                        const anilistData = await getAnimeById(currentMedia.tmdbId || currentMedia.id);
+                        if (anilistData) {
+                            const formattedGenres = anilistData.genres?.map((g, idx) => ({ id: idx, name: g })) || [];
+                            const formattedDetails = {
+                                id: anilistData.id,
+                                name: anilistData.title.english || anilistData.title.romaji,
+                                title: anilistData.title.english || anilistData.title.romaji,
+                                overview: anilistData.description?.replace(/<[^>]*>/g, '') || "No description available.",
+                                poster_path: anilistData.coverImage.large,
+                                backdrop_path: anilistData.bannerImage,
+                                vote_average: anilistData.averageScore / 10,
+                                status: anilistData.status,
+                                genres: formattedGenres,
+                                number_of_seasons: 1,
+                                number_of_episodes: anilistData.episodes || 12,
+                                seasons: [
+                                    {
+                                        season_number: 1,
+                                        name: "Season 1",
+                                        episode_count: anilistData.episodes || 12
+                                    }
+                                ],
+                                next_episode_to_air: anilistData.nextAiringEpisode ? {
+                                    season_number: 1,
+                                    episode_number: anilistData.nextAiringEpisode.episode,
+                                    name: `Episode ${anilistData.nextAiringEpisode.episode}`,
+                                    air_date: new Date(anilistData.nextAiringEpisode.airingAt * 1000).toLocaleDateString()
+                                } : null,
+                                episodes: anilistData.episodes,
+                                streamingEpisodes: anilistData.streamingEpisodes
+                            };
+                            setDetails(formattedDetails);
+                            setSelectedSeason(1);
+                        } else {
+                            throw new Error("Failed to load AniList details");
+                        }
+                    } else {
+                        const data = await getMediaDetails(currentMedia.tmdbId || currentMedia.id, type);
+                        setDetails(data);
+                        
+                        // Fetch watch providers
+                        const providers = await getWatchProviders(currentMedia.tmdbId || currentMedia.id, type);
+                        setWatchProviders(providers);
+                        
+                        if ((type === 'tv') && data.seasons && data.seasons.length > 0) {
+                            const nonZeroSeasons = data.seasons.filter(s => s.season_number > 0);
+                            const defaultSeason = nonZeroSeasons.length > 0 ? nonZeroSeasons[0].season_number : data.seasons[0].season_number;
+                            setSelectedSeason(defaultSeason);
+                        } else {
+                            setSelectedSeason(null);
+                        }
+                    }
                 }
-            }
             } catch (e) {
                 console.error("Failed to fetch details", e);
                 setError("Failed to retrieve details. Please check your internet connection.");
@@ -78,19 +117,36 @@ function MediaModal({ media, onClose }) {
     useEffect(() => {
         const fetchSeason = async () => {
             if (selectedSeason !== null && details && (details.id || currentMedia.tmdbId || currentMedia.id)) {
-                const tvId = details.id || currentMedia.tmdbId || currentMedia.id;
-                const data = await getSeasonDetails(tvId, selectedSeason);
-                if (data && data.episodes) {
-                    setSeasonEpisodes(data.episodes);
+                let type = currentMedia.type === 'anime' || currentMedia.media_type === 'anime' ? 'anime' : (currentMedia.media_type || currentMedia.type);
+                if (type === 'anime') {
+                    const episodesCount = details.episodes || 12;
+                    const mockEpisodes = [];
+                    for (let i = 1; i <= episodesCount; i++) {
+                        const stream = details.streamingEpisodes?.find(s => s.title.toLowerCase().includes(`episode ${i}`) || s.title.endsWith(` ${i}`));
+                        mockEpisodes.push({
+                            id: `ep-${i}`,
+                            episode_number: i,
+                            name: stream ? stream.title.replace(/Episode \d+\s*-\s*/i, '') : `Episode ${i}`,
+                            still_path: stream ? stream.thumbnail : null,
+                            overview: stream ? `Watch on streaming services. Link: ${stream.url}` : ""
+                        });
+                    }
+                    setSeasonEpisodes(mockEpisodes);
                 } else {
-                    setSeasonEpisodes([]);
+                    const tvId = details.id || currentMedia.tmdbId || currentMedia.id;
+                    const data = await getSeasonDetails(tvId, selectedSeason);
+                    if (data && data.episodes) {
+                        setSeasonEpisodes(data.episodes);
+                    } else {
+                        setSeasonEpisodes([]);
+                    }
                 }
             } else {
                 setSeasonEpisodes([]);
             }
         };
         fetchSeason();
-    }, [selectedSeason, details, currentMedia.id, currentMedia.tmdbId]);
+    }, [selectedSeason, details, currentMedia.id, currentMedia.tmdbId, currentMedia.media_type, currentMedia.type]);
 
     if (!currentMedia) return null;
 
@@ -102,11 +158,13 @@ function MediaModal({ media, onClose }) {
     const rating = isPerson ? null : (details?.vote_average?.toFixed(1) || currentMedia.vote_average?.toFixed(1));
     const language = isPerson ? null : (details?.spoken_languages?.[0]?.english_name || currentMedia.original_language?.toUpperCase() || details?.original_language?.toUpperCase());
     const status = isPerson ? null : details?.status;
-    const backdropUrl = isPerson ? null : ((details?.backdrop_path || currentMedia.backdrop_path) ? `https://image.tmdb.org/t/p/w1280${details?.backdrop_path || currentMedia.backdrop_path}` : null);
-    const posterUrl = isPerson ? ((details?.profile_path || currentMedia.profile_path) ? `https://image.tmdb.org/t/p/w500${details?.profile_path || currentMedia.profile_path}` : null) : ((details?.poster_path || currentMedia.poster_path || currentMedia.poster) ? `https://image.tmdb.org/t/p/w500${details?.poster_path || currentMedia.poster_path || currentMedia.poster}` : null);
+    const rawBackdrop = details?.backdrop_path || currentMedia.backdrop_path;
+    const backdropUrl = isPerson ? null : (rawBackdrop ? (rawBackdrop.startsWith("http://") || rawBackdrop.startsWith("https://") ? rawBackdrop : `https://image.tmdb.org/t/p/w1280${rawBackdrop}`) : null);
+    const rawPoster = isPerson ? (details?.profile_path || currentMedia.profile_path) : (details?.poster_path || currentMedia.poster_path || currentMedia.poster);
+    const posterUrl = rawPoster ? (rawPoster.startsWith("http://") || rawPoster.startsWith("https://") ? rawPoster : `https://image.tmdb.org/t/p/w500${rawPoster}`) : null;
     
     // Determine the display type
-    let rawType = currentMedia.media_type || currentMedia.type;
+    let rawType = currentMedia.type === 'anime' || currentMedia.media_type === 'anime' ? 'anime' : (currentMedia.media_type || currentMedia.type);
     // Auto-detect if it was a TV show from Japan with Animation genre
     if (!isPerson && details && rawType === 'tv' && details.origin_country?.includes("JP") && details.genres?.some(g => g.id === 16)) {
         rawType = 'anime';
@@ -544,6 +602,20 @@ function MediaModal({ media, onClose }) {
                                                 
                                                 if (response.success) {
                                                     toast.success(`Progress saved: S${selectedSeason} E${ep.episode_number}`, { id: loadingToast });
+                                                    
+                                                    // Auto-complete if show is ended/canceled and all episodes are watched
+                                                    const isEndedOrCanceled = details?.status === 'Ended' || details?.status === 'Canceled';
+                                                    const nonZeroSeasons = details?.seasons?.filter(s => s.season_number > 0) || [];
+                                                    const lastSeasonObj = nonZeroSeasons[nonZeroSeasons.length - 1];
+                                                    
+                                                    if (isEndedOrCanceled && lastSeasonObj && currentVaultItem) {
+                                                        if (selectedSeason === lastSeasonObj.season_number && ep.episode_number >= lastSeasonObj.episode_count) {
+                                                            if (currentVaultItem.status !== 'Completed') {
+                                                                await updateVaultItemStatus(currentVaultItem.id, 'Completed');
+                                                                toast.success(`${details.name || details.title} automatically marked as Completed!`);
+                                                            }
+                                                        }
+                                                    }
                                                 } else {
                                                     toast.error("Failed to save progress.", { id: loadingToast });
                                                 }
@@ -564,7 +636,7 @@ function MediaModal({ media, onClose }) {
                                                     }}
                                                 >
                                                     {ep.still_path ? (
-                                                        <img src={`https://image.tmdb.org/t/p/w227_and_h127_bestv2${ep.still_path}`} alt={ep.name} style={{ width: '130px', height: '73px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0, opacity: isWatched ? 0.6 : 1 }} loading="lazy" />
+                                                        <img src={ep.still_path.startsWith("http://") || ep.still_path.startsWith("https://") ? ep.still_path : `https://image.tmdb.org/t/p/w227_and_h127_bestv2${ep.still_path}`} alt={ep.name} style={{ width: '130px', height: '73px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0, opacity: isWatched ? 0.6 : 1 }} loading="lazy" />
                                                     ) : (
                                                         <div style={{ width: '130px', height: '73px', background: '#1a1d24', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: '0.8rem', flexShrink: 0, opacity: isWatched ? 0.6 : 1 }}>No Image</div>
                                                     )}
@@ -641,7 +713,7 @@ function MediaModal({ media, onClose }) {
                                             <div className="recommendation-poster-wrapper">
                                                 {rec.poster_path ? (
                                                     <img 
-                                                        src={`https://image.tmdb.org/t/p/w342${rec.poster_path}`} 
+                                                        src={rec.poster_path.startsWith("http://") || rec.poster_path.startsWith("https://") ? rec.poster_path : `https://image.tmdb.org/t/p/w342${rec.poster_path}`} 
                                                         alt={rec.title || rec.name} 
                                                         className="recommendation-poster"
                                                         loading="lazy"
@@ -685,7 +757,7 @@ function MediaModal({ media, onClose }) {
                                             <div className="recommendation-poster-wrapper">
                                                 {rec.poster_path ? (
                                                     <img 
-                                                        src={`https://image.tmdb.org/t/p/w342${rec.poster_path}`} 
+                                                        src={rec.poster_path.startsWith("http://") || rec.poster_path.startsWith("https://") ? rec.poster_path : `https://image.tmdb.org/t/p/w342${rec.poster_path}`} 
                                                         alt={rec.title || rec.name} 
                                                         className="recommendation-poster"
                                                         loading="lazy"

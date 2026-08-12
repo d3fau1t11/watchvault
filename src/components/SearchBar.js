@@ -79,7 +79,7 @@ function SearchBar({ query, setQuery, onSearch }) {
                     {suggestions.map((item) => {
                         const title = item.title || item.name;
                         const year = (item.release_date || item.first_air_date || "").substring(0, 4);
-                        const posterUrl = item.poster_path ? `https://image.tmdb.org/t/p/w92${item.poster_path}` : null;
+                        const posterUrl = item.poster_path ? (item.poster_path.startsWith("http://") || item.poster_path.startsWith("https://") ? item.poster_path : `https://image.tmdb.org/t/p/w92${item.poster_path}`) : null;
                         
                         return (
                             <li key={item.id} className="suggestion-item" onClick={() => handleSuggestionClick(title)}>

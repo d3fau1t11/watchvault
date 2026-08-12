@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, lazy, Suspense } from "react";
-import { searchMedia, getTrending } from "../services/tmdbApi";
+import { searchMedia, getTrending, getMediaDetails } from "../services/tmdbApi";
 import { searchAnime, getTrendingAnime, convertAnilistToTmdbFormat } from "../services/anilistApi";
 import { addToVault, updateVaultItemProgress, updateVaultItemStatus } from "../services/firestoreService";
 import { useAuth } from "../context/AuthContext";
@@ -52,16 +52,9 @@ function Home() {
                 setPage(1);
                 setHasMore(data.pageInfo.hasNextPage);
             } else {
-                const data = await getTrending(1);
-                let filteredData = data.results;
-                if (contentType === "movies") {
-                    filteredData = data.results.filter(item => item.media_type === 'movie');
-                } else if (contentType === "tv") {
-                    filteredData = data.results.filter(item => item.media_type === 'tv');
-                } else {
-                    filteredData = data.results.filter(item => item.media_type === 'movie' || item.media_type === 'tv');
-                }
-                setResults(filteredData);
+                const type = contentType === "movies" ? "movie" : contentType === "tv" ? "tv" : "all";
+                const data = await getTrending(1, type);
+                setResults(data.results);
                 setPage(1);
                 setHasMore(data.page < data.total_pages);
             }
@@ -93,16 +86,9 @@ function Home() {
                 setPage(1);
                 setHasMore(data.pageInfo.hasNextPage);
             } else {
-                const data = await searchMedia(query, 1);
-                let filteredData = data.results;
-                if (contentType === "movies") {
-                    filteredData = data.results.filter(item => item.media_type === 'movie');
-                } else if (contentType === "tv") {
-                    filteredData = data.results.filter(item => item.media_type === 'tv');
-                } else {
-                    filteredData = data.results.filter(item => item.media_type === 'movie' || item.media_type === 'tv');
-                }
-                setResults(filteredData);
+                const type = contentType === "movies" ? "movie" : contentType === "tv" ? "tv" : "all";
+                const data = await searchMedia(query, 1, type);
+                setResults(data.results);
                 setPage(1);
                 setHasMore(data.page < data.total_pages);
             }
@@ -129,20 +115,13 @@ function Home() {
                 setHasMore(newData.pageInfo.hasNextPage);
             } else {
                 let data;
+                const type = contentType === "movies" ? "movie" : contentType === "tv" ? "tv" : "all";
                 if (isTrending) {
-                    data = await getTrending(nextPage);
+                    data = await getTrending(nextPage, type);
                 } else {
-                    data = await searchMedia(currentQuery, nextPage);
+                    data = await searchMedia(currentQuery, nextPage, type);
                 }
-                let filteredData = data.results;
-                if (contentType === "movies") {
-                    filteredData = data.results.filter(item => item.media_type === 'movie');
-                } else if (contentType === "tv") {
-                    filteredData = data.results.filter(item => item.media_type === 'tv');
-                } else {
-                    filteredData = data.results.filter(item => item.media_type === 'movie' || item.media_type === 'tv');
-                }
-                setResults([...results, ...filteredData]);
+                setResults([...results, ...data.results]);
                 setPage(nextPage);
                 setHasMore(data.page < data.total_pages);
             }
@@ -188,6 +167,26 @@ function Home() {
             const response = await updateVaultItemProgress(item.id, item.season || 1, nextEpisode);
             if (response.success) {
                 toast.success(`Progress updated to S${item.season || 1} E${nextEpisode}`);
+                
+                // Auto-complete if show is ended/canceled and all episodes are watched
+                try {
+                    let type = item.type;
+                    if (type === 'anime') type = 'tv';
+                    const details = await getMediaDetails(item.tmdbId, type);
+                    const isEndedOrCanceled = details?.status === 'Ended' || details?.status === 'Canceled';
+                    const nonZeroSeasons = details?.seasons?.filter(s => s.season_number > 0) || [];
+                    const lastSeasonObj = nonZeroSeasons[nonZeroSeasons.length - 1];
+                    
+                    if (isEndedOrCanceled && lastSeasonObj) {
+                        const currentSeason = item.season || 1;
+                        if (currentSeason === lastSeasonObj.season_number && nextEpisode >= lastSeasonObj.episode_count) {
+                            await updateVaultItemStatus(item.id, 'Completed');
+                            toast.success(`${item.title} automatically marked as Completed!`);
+                        }
+                    }
+                } catch (e) {
+                    console.error("Auto-complete check failed on next episode:", e);
+                }
             } else {
                 toast.error("Failed to update progress.");
             }
@@ -244,7 +243,7 @@ function Home() {
                                     }}
                                 >
                                     <img 
-                                        src={item.poster ? `https://image.tmdb.org/t/p/w200${item.poster}` : 'https://via.placeholder.com/100x150?text=No+Poster'}
+                                        src={item.poster ? (item.poster.startsWith("http://") || item.poster.startsWith("https://") ? item.poster : `https://image.tmdb.org/t/p/w200${item.poster}`) : 'https://via.placeholder.com/100x150?text=No+Poster'}
                                         alt={item.title}
                                         style={{
                                             width: '80px',

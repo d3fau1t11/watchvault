@@ -27,7 +27,9 @@ function VaultItem({ item, onUpdateStatus, onUpdateType, onUpdateProgress, onRem
         return () => clearTimeout(timeoutId);
     }, [item.type, item.tmdbId, item.season, item.episode]);
     const posterUrl = item.poster
-        ? `https://image.tmdb.org/t/p/w342${item.poster}`
+        ? (item.poster.startsWith("http://") || item.poster.startsWith("https://")
+            ? item.poster
+            : `https://image.tmdb.org/t/p/w342${item.poster}`)
         : null;
 
     return (

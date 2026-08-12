@@ -5,9 +5,8 @@ const COLLECTION_NAME = "vault";
 
 export const addToVault = async (userId, mediaItem, status = "Plan to Watch") => {
     try {
-        // Auto-detect Anime (Any media with the Animation genre)
-        let mediaType = mediaItem.media_type;
-        if (mediaItem.genre_ids?.includes(16)) {
+        let mediaType = mediaItem.type || mediaItem.media_type;
+        if (mediaItem.type === "anime" || mediaItem.genre_ids?.includes(16)) {
             mediaType = "anime";
         }
 

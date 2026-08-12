@@ -31,16 +31,26 @@ const fetchWithCacheSilent = async (url) => {
     }
 };
 
-export const searchMedia = async (query, page = 1) => {
-    return fetchWithCache(
-        `${BASE_URL}/search/multi?api_key=${API_KEY}&query=${query}&page=${page}`
+export const searchMedia = async (query, page = 1, type = "all") => {
+    const endpoint = type === "movie" ? "movie" : type === "tv" ? "tv" : "multi";
+    const data = await fetchWithCache(
+        `${BASE_URL}/search/${endpoint}?api_key=${API_KEY}&query=${query}&page=${page}`
     );
+    if (data && data.results && (type === "movie" || type === "tv")) {
+        data.results = data.results.map(item => ({ ...item, media_type: type }));
+    }
+    return data;
 };
 
-export const getTrending = async (page = 1) => {
-    return fetchWithCache(
-        `${BASE_URL}/trending/all/week?api_key=${API_KEY}&page=${page}`
+export const getTrending = async (page = 1, type = "all") => {
+    const endpoint = type === "movie" ? "movie" : type === "tv" ? "tv" : "all";
+    const data = await fetchWithCache(
+        `${BASE_URL}/trending/${endpoint}/week?api_key=${API_KEY}&page=${page}`
     );
+    if (data && data.results && (type === "movie" || type === "tv")) {
+        data.results = data.results.map(item => ({ ...item, media_type: type }));
+    }
+    return data;
 };
 
 export const getMediaDetails = async (id, type) => {

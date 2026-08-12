@@ -21,7 +21,7 @@ function Vault() {
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const [airingThisWeek, setAiringThisWeek] = useState([]);
 
-    // Fetch airing this week data
+    // Fetch airing this week data & run background auto-completion for existing items
     useEffect(() => {
         const fetchAiringThisWeek = async () => {
             if (!currentUser || vaultItems.length === 0) {
@@ -30,7 +30,7 @@ function Vault() {
             }
 
             const tvShows = vaultItems.filter(item => 
-                (item.type === 'tv' || item.type === 'anime') && item.status === 'Watching'
+                (item.type === 'tv' || item.type === 'anime') && item.status !== 'Completed'
             );
 
             if (tvShows.length === 0) {
@@ -46,7 +46,25 @@ function Vault() {
             for (const show of tvShows) {
                 try {
                     const details = await getTVDetailsWithAiring(show.tmdbId);
-                    if (details?.next_episode_to_air) {
+                    
+                    // Auto-complete check for already listed shows
+                    const isEndedOrCanceled = details?.status === 'Ended' || details?.status === 'Canceled';
+                    const nonZeroSeasons = details?.seasons?.filter(s => s.season_number > 0) || [];
+                    const lastSeasonObj = nonZeroSeasons[nonZeroSeasons.length - 1];
+                    
+                    if (isEndedOrCanceled && lastSeasonObj) {
+                        const userSeason = show.season || 1;
+                        const userEpisode = show.episode || 0;
+                        const isCompleted = (userSeason > lastSeasonObj.season_number) || 
+                                            (userSeason === lastSeasonObj.season_number && userEpisode >= lastSeasonObj.episode_count);
+                        if (isCompleted) {
+                            await updateVaultItemStatus(show.id, 'Completed');
+                            toast.success(`"${show.title}" automatically marked as Completed!`);
+                            continue;
+                        }
+                    }
+                    
+                    if (show.status === 'Watching' && details?.next_episode_to_air) {
                         const nextAirDate = new Date(details.next_episode_to_air.air_date);
                         if (nextAirDate >= now && nextAirDate <= nextWeek) {
                             airingShows.push({
@@ -106,6 +124,25 @@ function Vault() {
         const response = await updateVaultItemProgress(id, season, episode);
         if (response.success) {
             // Real-time sync will handle the update
+            // Auto-complete if show is ended/canceled and all episodes are watched
+            try {
+                const item = vaultItems.find(i => i.id === id);
+                if (item && item.type !== 'movie') {
+                    const details = await getTVDetailsWithAiring(item.tmdbId);
+                    const isEndedOrCanceled = details?.status === 'Ended' || details?.status === 'Canceled';
+                    const nonZeroSeasons = details?.seasons?.filter(s => s.season_number > 0) || [];
+                    const lastSeasonObj = nonZeroSeasons[nonZeroSeasons.length - 1];
+                    
+                    if (isEndedOrCanceled && lastSeasonObj) {
+                        if (season === lastSeasonObj.season_number && episode >= lastSeasonObj.episode_count) {
+                            await updateVaultItemStatus(id, 'Completed');
+                            toast.success(`${item.title} automatically marked as Completed!`);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error("Auto-complete check failed on Vault progress change:", e);
+            }
         } else {
             toast.error("Failed to update progress.");
         }
@@ -426,7 +463,7 @@ function Vault() {
                             >
                                 <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
                                     <img 
-                                        src={item.poster ? `https://image.tmdb.org/t/p/w200${item.poster}` : 'https://via.placeholder.com/80x120?text=No+Poster'}
+                                        src={item.poster ? (item.poster.startsWith("http://") || item.poster.startsWith("https://") ? item.poster : `https://image.tmdb.org/t/p/w200${item.poster}`) : 'https://via.placeholder.com/80x120?text=No+Poster'}
                                         alt={item.title}
                                         style={{
                                             width: '60px',

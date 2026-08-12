@@ -184,7 +184,7 @@ function Recommendations() {
                 const recTitle = rec.title || rec.name;
                 const rating = rec.vote_average ? Math.round(rec.vote_average * 10) / 10 : 'N/A';
                 const poster = rec.poster_path 
-                    ? `https://image.tmdb.org/t/p/w342${rec.poster_path}`
+                    ? (rec.poster_path.startsWith("http://") || rec.poster_path.startsWith("https://") ? rec.poster_path : `https://image.tmdb.org/t/p/w342${rec.poster_path}`)
                     : null;
                 const isMovie = rec.media_type === 'movie';
 
