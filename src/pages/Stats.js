@@ -1,13 +1,11 @@
-import { useState, useEffect, useMemo } from "react";
-import { useAuth } from "../context/AuthContext";
+import { useMemo } from "react";
 import { useVault } from "../context/VaultContext";
 import { useNavigate } from "react-router-dom";
 import EmptyState from "../components/EmptyState";
 import { BarChart3, TrendingUp, Clock, Library } from "lucide-react";
 
 function Stats() {
-    const { currentUser } = useAuth();
-    const { vaultItems, loading: vaultLoading, getWatchingItems } = useVault();
+    const { vaultItems, loading: vaultLoading } = useVault();
     const navigate = useNavigate();
 
 

@@ -14,7 +14,7 @@ const MediaModal = lazy(() => import("../components/MediaModal"));
 
 function Vault() {
     const { currentUser } = useAuth();
-    const { vaultItems, loading: vaultLoading, getVaultItem } = useVault();
+    const { vaultItems, loading: vaultLoading } = useVault();
     const navigate = useNavigate();
     const [selectedMedia, setSelectedMedia] = useState(null);
     const fileInputRef = useRef(null);

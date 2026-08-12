@@ -22,7 +22,7 @@ function MediaModal({ media, onClose }) {
     const [watchProviders, setWatchProviders] = useState(null);
     const modalContentRef = useRef(null);
     const { currentUser } = useAuth();
-    const { vaultIds, vaultItems, isInVault, getVaultItem } = useVault();
+    const { isInVault, getVaultItem } = useVault();
     const navigate = useNavigate();
 
     // Reset internal state if the external prop changes

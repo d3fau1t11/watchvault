@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import { searchMedia, getTrending } from "../services/tmdbApi";
 import { searchAnime, getTrendingAnime, convertAnilistToTmdbFormat } from "../services/anilistApi";
 import { addToVault, updateVaultItemProgress, updateVaultItemStatus } from "../services/firestoreService";
@@ -23,7 +23,7 @@ function Home() {
     const [selectedMedia, setSelectedMedia] = useState(null);
     const [isTrending, setIsTrending] = useState(true);
     const [isOnline, setIsOnline] = useState(navigator.onLine);
-    const { vaultIds, isInVault, getWatchingItems, vaultItems } = useVault();
+    const { isInVault, getWatchingItems } = useVault();
     const [contentType, setContentType] = useState("all"); // all, movies, tv, anime
 
     useEffect(() => {
@@ -40,11 +40,7 @@ function Home() {
     const { currentUser } = useAuth();
     const navigate = useNavigate();
 
-    useEffect(() => {
-        loadTrending();
-    }, []);
-
-    const loadTrending = async () => {
+    const loadTrending = useCallback(async () => {
         setLoading(true);
         setIsTrending(true);
         setCurrentQuery("");
@@ -74,7 +70,11 @@ function Home() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [contentType]);
+
+    useEffect(() => {
+        loadTrending();
+    }, [loadTrending]);
 
     const handleSearch = async (query) => {
         if (!query) {

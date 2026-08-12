@@ -13,7 +13,7 @@ const MediaModal = lazy(() => import("../components/MediaModal"));
 
 function Recommendations() {
     const { currentUser } = useAuth();
-    const { vaultItems, loading: vaultLoading, isInVault } = useVault();
+    const { vaultItems, loading: vaultLoading } = useVault();
     const navigate = useNavigate();
     const [personalizedRecs, setPersonalizedRecs] = useState([]);
     const [loading, setLoading] = useState(true);
