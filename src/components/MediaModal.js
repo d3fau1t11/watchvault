@@ -437,9 +437,6 @@ function MediaModal({ media, onClose }) {
                                     </div>
                                 </div>
                             )}
-                                    ))}
-                                </div>
-                            )}
 
                             {details?.next_episode_to_air && (
                                 <div style={{
@@ -546,9 +543,6 @@ function MediaModal({ media, onClose }) {
                                                 const response = await updateVaultItemProgress(currentVaultItem.id, selectedSeason, ep.episode_number);
                                                 
                                                 if (response.success) {
-                                                    setVaultItems(prev => prev.map(item => 
-                                                        item.id === currentVaultItem.id ? { ...item, season: selectedSeason, episode: ep.episode_number } : item
-                                                    ));
                                                     toast.success(`Progress saved: S${selectedSeason} E${ep.episode_number}`, { id: loadingToast });
                                                 } else {
                                                     toast.error("Failed to save progress.", { id: loadingToast });

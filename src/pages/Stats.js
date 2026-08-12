@@ -140,7 +140,7 @@ function Stats() {
                 </p>
             </div>
 
-            {items.length === 0 ? (
+            {vaultItems.length === 0 ? (
                 <EmptyState 
                     icon="library"
                     title="Your stats profile is empty!"
