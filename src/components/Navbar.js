@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { LogOut, LayoutDashboard, Search, Sparkles, BarChart3, Bell } from "lucide-react";
+import { LogOut, LayoutDashboard, Search, Sparkles, BarChart3, Bell, ChevronLeft, ChevronRight } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useVault } from "../context/VaultContext";
 import { getTVDetailsWithAiring } from "../services/tmdbApi";
@@ -13,8 +13,28 @@ function Navbar() {
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const { vaultItems } = useVault();
     const [notifications, setNotifications] = useState([]);
+    const [readNotifications, setReadNotifications] = useState(() => {
+        try {
+            const saved = localStorage.getItem("read_notifications");
+            return saved ? new Set(JSON.parse(saved)) : new Set();
+        } catch (e) {
+            return new Set();
+        }
+    });
     const [showDropdown, setShowDropdown] = useState(false);
     const dropdownRef = useRef(null);
+    const [isCollapsed, setIsCollapsed] = useState(() => {
+        return localStorage.getItem("sidebar_collapsed") === "true";
+    });
+
+    useEffect(() => {
+        if (isCollapsed) {
+            document.body.classList.add("sidebar-collapsed");
+        } else {
+            document.body.classList.remove("sidebar-collapsed");
+        }
+        localStorage.setItem("sidebar_collapsed", isCollapsed);
+    }, [isCollapsed]);
 
     useEffect(() => {
         const handleOnline = () => setIsOnline(true);
@@ -119,13 +139,123 @@ function Navbar() {
         }
     };
 
+    const handleMarkAsRead = (e, show) => {
+        e.stopPropagation();
+        const notificationKey = `${show.id}-${show.lastEpisode.season_number}-${show.lastEpisode.episode_number}`;
+        const newRead = new Set(readNotifications);
+        newRead.add(notificationKey);
+        setReadNotifications(newRead);
+        try {
+            localStorage.setItem("read_notifications", JSON.stringify(Array.from(newRead)));
+            toast.success("Notification dismissed");
+        } catch (err) {
+            console.error("Failed to save read notification to localStorage", err);
+        }
+    };
+
+    const handleDismissAll = (e) => {
+        e.stopPropagation();
+        const newRead = new Set(readNotifications);
+        activeNotifications.forEach(show => {
+            const key = `${show.id}-${show.lastEpisode.season_number}-${show.lastEpisode.episode_number}`;
+            newRead.add(key);
+        });
+        setReadNotifications(newRead);
+        try {
+            localStorage.setItem("read_notifications", JSON.stringify(Array.from(newRead)));
+            toast.success("All notifications dismissed");
+        } catch (err) {
+            console.error("Failed to save read notifications to localStorage", err);
+        }
+    };
+
+    const handleMarkAllWatched = async (e) => {
+        e.stopPropagation();
+        const loadingToast = toast.loading("Updating progress for all shows...");
+        try {
+            const promises = activeNotifications.map(show => 
+                updateVaultItemProgress(show.id, show.lastEpisode.season_number, show.lastEpisode.episode_number)
+            );
+            const results = await Promise.all(promises);
+            const failedCount = results.filter(res => !res.success).length;
+            
+            if (failedCount === 0) {
+                toast.success("All shows updated successfully!", { id: loadingToast });
+            } else {
+                toast.error(`Updated progress, but failed for ${failedCount} show(s).`, { id: loadingToast });
+            }
+        } catch (err) {
+            console.error("Error updating progress for all shows:", err);
+            toast.error("Failed to update progress for all shows", { id: loadingToast });
+        }
+    };
+
+    const activeNotifications = notifications.filter(show => {
+        const key = `${show.id}-${show.lastEpisode.season_number}-${show.lastEpisode.episode_number}`;
+        return !readNotifications.has(key);
+    });
+
     return (
-        <nav className="navbar">
-            <div className="container">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <>
+            {/* Sidebar Navigation */}
+            <aside className="sidebar">
+                <div className="sidebar-header">
                     <Link to="/" className="nav-brand">
                         WatchVault
                     </Link>
+                </div>
+                <div className="sidebar-links">
+                    <Link 
+                        to="/" 
+                        className={`sidebar-link ${location.pathname === '/' ? 'active' : ''}`}
+                    >
+                        <Search size={20} />
+                        <span className="sidebar-text">Search</span>
+                    </Link>
+                    {currentUser && (
+                        <>
+                            <Link 
+                                to="/vault" 
+                                className={`sidebar-link ${location.pathname === '/vault' ? 'active' : ''}`}
+                            >
+                                <LayoutDashboard size={20} />
+                                <span className="sidebar-text">My Vault</span>
+                            </Link>
+                            <Link 
+                                to="/recommendations" 
+                                className={`sidebar-link ${location.pathname === '/recommendations' ? 'active' : ''}`}
+                            >
+                                <Sparkles size={20} />
+                                <span className="sidebar-text">Discover</span>
+                            </Link>
+                            <Link 
+                                to="/stats" 
+                                className={`sidebar-link ${location.pathname === '/stats' ? 'active' : ''}`}
+                            >
+                                <BarChart3 size={20} />
+                                <span className="sidebar-text">Stats</span>
+                            </Link>
+                        </>
+                    )}
+                </div>
+                <button 
+                    className="sidebar-toggle-btn" 
+                    onClick={() => setIsCollapsed(!isCollapsed)}
+                    title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                >
+                    {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+                </button>
+            </aside>
+
+            {/* Top Header Panel */}
+            <header className="top-header">
+                <div className="header-mobile-brand">
+                    <Link to="/" className="nav-brand">
+                        WatchVault
+                    </Link>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginLeft: 'auto' }}>
                     {!isOnline && (
                         <span style={{
                             background: 'rgba(239, 68, 68, 0.15)',
@@ -138,42 +268,12 @@ function Navbar() {
                             letterSpacing: '0.5px',
                             textTransform: 'uppercase'
                         }}>
-                            Offline Mode
+                            Offline
                         </span>
                     )}
-                </div>
-                <div className="nav-links">
-                    <Link 
-                        to="/" 
-                        className={`nav-link ${location.pathname === '/' ? 'active' : ''}`}
-                    >
-                        <Search size={18} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                        Search
-                    </Link>
+
                     {currentUser ? (
                         <>
-                            <Link 
-                                to="/vault" 
-                                className={`nav-link ${location.pathname === '/vault' ? 'active' : ''}`}
-                            >
-                                <LayoutDashboard size={18} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                                My Vault
-                            </Link>
-                            <Link 
-                                to="/recommendations" 
-                                className={`nav-link ${location.pathname === '/recommendations' ? 'active' : ''}`}
-                            >
-                                <Sparkles size={18} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                                Discover
-                            </Link>
-                            <Link 
-                                to="/stats" 
-                                className={`nav-link ${location.pathname === '/stats' ? 'active' : ''}`}
-                            >
-                                <BarChart3 size={18} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                                Stats
-                            </Link>
-                            
                             {/* Notification Bell */}
                             <div className="notifications-wrapper" ref={dropdownRef}>
                                 <button 
@@ -182,35 +282,76 @@ function Navbar() {
                                     title="Notifications"
                                     style={{ color: showDropdown ? 'var(--text-primary)' : 'var(--text-secondary)' }}
                                 >
-                                    <Bell size={18} style={{ verticalAlign: 'middle' }} />
-                                    {notifications.length > 0 && (
+                                    <Bell size={20} style={{ verticalAlign: 'middle' }} />
+                                    {activeNotifications.length > 0 && (
                                         <span className="notification-badge">
-                                            {notifications.length}
+                                            {activeNotifications.length}
                                         </span>
                                     )}
                                 </button>
                                 
                                 {showDropdown && (
                                     <div className="notifications-dropdown" onClick={(e) => e.stopPropagation()}>
-                                        <div className="notification-header">
-                                            <h3>Notifications</h3>
-                                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                                                {notifications.length} New Releases
-                                            </span>
-                                        </div>
-                                        {notifications.length === 0 ? (
+                                        <div className="notification-header" style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '12px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                                                 <h3 style={{ margin: 0, fontSize: '1rem' }}>Notifications</h3>
+                                                 <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                                                     {activeNotifications.length} New Releases
+                                                 </span>
+                                             </div>
+                                             {activeNotifications.length > 0 && (
+                                                 <div style={{ display: 'flex', gap: '8px', width: '100%', marginTop: '4px' }}>
+                                                     <button 
+                                                         onClick={handleMarkAllWatched}
+                                                         style={{
+                                                             flex: 1,
+                                                             background: 'rgba(229, 9, 20, 0.1)',
+                                                             border: '1px solid rgba(229, 9, 20, 0.2)',
+                                                             color: 'var(--accent-primary)',
+                                                             borderRadius: '4px',
+                                                             padding: '6px 8px',
+                                                             fontSize: '0.7rem',
+                                                             fontWeight: 600,
+                                                             cursor: 'pointer',
+                                                             transition: 'all 0.2s',
+                                                             fontFamily: 'inherit'
+                                                         }}
+                                                     >
+                                                         Mark All Watched
+                                                     </button>
+                                                     <button 
+                                                         onClick={handleDismissAll}
+                                                         style={{
+                                                             flex: 1,
+                                                             background: 'rgba(255, 255, 255, 0.05)',
+                                                             border: '1px solid rgba(255, 255, 255, 0.1)',
+                                                             color: 'var(--text-secondary)',
+                                                             borderRadius: '4px',
+                                                             padding: '6px 8px',
+                                                             fontSize: '0.7rem',
+                                                             fontWeight: 600,
+                                                             cursor: 'pointer',
+                                                             transition: 'all 0.2s',
+                                                             fontFamily: 'inherit'
+                                                         }}
+                                                     >
+                                                         Dismiss All
+                                                     </button>
+                                                 </div>
+                                             )}
+                                         </div>
+                                        {activeNotifications.length === 0 ? (
                                             <div style={{ padding: '24px 12px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
                                                 No new episodes. You're all caught up!
                                             </div>
                                         ) : (
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                                {notifications.map(show => (
+                                                {activeNotifications.map(show => (
                                                     <div 
                                                         key={show.id} 
                                                         className="notification-item"
                                                         onClick={() => {
                                                             setShowDropdown(false);
-                                                            // We could open details modal, or navigate
                                                         }}
                                                     >
                                                         <img 
@@ -223,12 +364,29 @@ function Navbar() {
                                                             <div className="notification-text">
                                                                 S{show.lastEpisode.season_number} E{show.lastEpisode.episode_number} is out!
                                                             </div>
-                                                            <button 
-                                                                className="notification-action-btn"
-                                                                onClick={(e) => handleMarkEpisodeWatched(e, show)}
-                                                            >
-                                                                Mark S{show.lastEpisode.season_number}E{show.lastEpisode.episode_number} Watched
-                                                            </button>
+                                                            <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                                                                <button 
+                                                                    className="notification-action-btn"
+                                                                    onClick={(e) => handleMarkEpisodeWatched(e, show)}
+                                                                    style={{ flex: 1, padding: '4px 6px', fontSize: '0.75rem' }}
+                                                                >
+                                                                    Mark Watched
+                                                                </button>
+                                                                <button 
+                                                                    className="notification-action-btn"
+                                                                    onClick={(e) => handleMarkAsRead(e, show)}
+                                                                    style={{ 
+                                                                        flex: 1, 
+                                                                        padding: '4px 6px', 
+                                                                        fontSize: '0.75rem',
+                                                                        background: 'rgba(255, 255, 255, 0.05)',
+                                                                        color: 'var(--text-secondary)',
+                                                                        border: '1px solid rgba(255, 255, 255, 0.1)'
+                                                                    }}
+                                                                >
+                                                                    Dismiss
+                                                                </button>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 ))}
@@ -248,8 +406,8 @@ function Navbar() {
                         </Link>
                     )}
                 </div>
-            </div>
-        </nav>
+            </header>
+        </>
     );
 }
 

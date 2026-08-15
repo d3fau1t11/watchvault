@@ -43,7 +43,25 @@ function VaultItem({ item, onUpdateStatus, onUpdateType, onUpdateProgress, onRem
             )}
             <div className="vault-info">
                 <div className="vault-details">
-                    <h3 className="vault-title">{item.title}</h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <h3 className="vault-title" style={{ margin: 0 }}>{item.title}</h3>
+                        {item.rating > 0 && (
+                            <span style={{ 
+                                background: 'rgba(251, 191, 36, 0.15)', 
+                                color: '#fbbf24', 
+                                padding: '2px 6px', 
+                                borderRadius: '4px', 
+                                fontSize: '0.75rem', 
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '2px',
+                                border: '1px solid rgba(251, 191, 36, 0.3)'
+                            }}>
+                                ★ {item.rating}
+                            </span>
+                        )}
+                    </div>
                     {episodeName && (
                         <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontStyle: 'italic', marginTop: '2px', display: 'block', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {`S${item.season || 1} E${item.episode || 0}: ${episodeName}`}
@@ -118,6 +136,24 @@ function VaultItem({ item, onUpdateStatus, onUpdateType, onUpdateProgress, onRem
                                     title="Episode Number"
                                 />
                             </div>
+                        </div>
+                    )}
+
+                    {/* Display tags inside Vault items list */}
+                    {item.tags && item.tags.length > 0 && (
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
+                            {item.tags.map((tag, idx) => (
+                                <span key={idx} style={{ 
+                                    background: 'rgba(229, 9, 20, 0.05)', 
+                                    border: '1px solid rgba(229, 9, 20, 0.15)', 
+                                    padding: '2px 8px', 
+                                    borderRadius: '12px', 
+                                    fontSize: '0.7rem', 
+                                    color: 'var(--text-secondary)'
+                                }}>
+                                    #{tag}
+                                </span>
+                            ))}
                         </div>
                     )}
                 </div>

@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { getMediaDetails, getPersonDetails, getSeasonDetails, getWatchProviders } from "../services/tmdbApi";
 import { getAnimeById } from "../services/anilistApi";
-import { addToVault, updateVaultItemProgress, removeVaultItem, updateVaultItemStatus } from "../services/firestoreService";
+import { addToVault, updateVaultItemProgress, removeVaultItem, updateVaultItemStatus, updateVaultItemDetails } from "../services/firestoreService";
 import { useAuth } from "../context/AuthContext";
 import { useVault } from "../context/VaultContext";
 import { useNavigate } from "react-router-dom";
@@ -25,6 +25,67 @@ function MediaModal({ media, onClose }) {
     const { currentUser } = useAuth();
     const { isInVault, getVaultItem } = useVault();
     const navigate = useNavigate();
+
+    const [myRating, setMyRating] = useState(0);
+    const [myReview, setMyReview] = useState("");
+    const [myNotes, setMyNotes] = useState("");
+    const [myTags, setMyTags] = useState([]);
+    const [newTagInput, setNewTagInput] = useState("");
+    const [showTrailerLightbox, setShowTrailerLightbox] = useState(false);
+
+    const currentVaultItem = getVaultItem(currentMedia.tmdbId || currentMedia.id);
+    const lastVaultIdRef = useRef(null);
+
+    useEffect(() => {
+        const vaultId = currentVaultItem ? currentVaultItem.id : null;
+        if (lastVaultIdRef.current !== vaultId) {
+            if (currentVaultItem) {
+                setMyRating(currentVaultItem.rating || 0);
+                setMyReview(currentVaultItem.review || "");
+                setMyNotes(currentVaultItem.notes || "");
+                setMyTags(currentVaultItem.tags || []);
+            } else {
+                setMyRating(0);
+                setMyReview("");
+                setMyNotes("");
+                setMyTags([]);
+            }
+            setNewTagInput("");
+            lastVaultIdRef.current = vaultId;
+        }
+    }, [currentMedia, currentVaultItem]);
+
+    const handleSaveCuration = async () => {
+        if (!currentVaultItem) return;
+        const loadingToast = toast.loading("Updating curation details...");
+        const res = await updateVaultItemDetails(currentVaultItem.id, {
+            rating: myRating,
+            review: myReview,
+            notes: myNotes,
+            tags: myTags
+        });
+        if (res.success) {
+            toast.success("Curation details saved!", { id: loadingToast });
+        } else {
+            toast.error("Failed to save details: " + res.error, { id: loadingToast });
+        }
+    };
+
+    const handleAddTag = (e) => {
+        e.preventDefault();
+        const cleaned = newTagInput.trim().toLowerCase();
+        if (!cleaned) return;
+        if (myTags.includes(cleaned)) {
+            toast.error("Tag already exists!");
+            return;
+        }
+        setMyTags([...myTags, cleaned]);
+        setNewTagInput("");
+    };
+
+    const handleRemoveTag = (tagToRemove) => {
+        setMyTags(myTags.filter(t => t !== tagToRemove));
+    };
 
     // Reset internal state if the external prop changes
     useEffect(() => {
@@ -386,7 +447,7 @@ function MediaModal({ media, onClose }) {
                             </div>
 
                             {!isPerson && (
-                                <div style={{ marginBottom: '20px', maxWidth: '300px', display: 'flex', gap: '8px' }}>
+                                <div style={{ marginBottom: '20px', maxWidth: '400px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                     <button 
                                         className="btn"
                                         onClick={handleAddCurrentToVault}
@@ -406,6 +467,25 @@ function MediaModal({ media, onClose }) {
                                     >
                                         {isCurrentInVault ? <><Check size={18} /> In Your Vault</> : <><Plus size={18} /> Add to Vault</>}
                                     </button>
+
+                                    {trailer && (
+                                        <button 
+                                            className="btn btn-outline"
+                                            onClick={() => setShowTrailerLightbox(true)}
+                                            style={{ 
+                                                flex: 1, 
+                                                display: 'flex', 
+                                                justifyContent: 'center', 
+                                                alignItems: 'center', 
+                                                gap: '8px',
+                                                borderColor: 'var(--accent-primary)',
+                                                color: 'var(--text-primary)',
+                                                padding: '12px'
+                                            }}
+                                        >
+                                            <PlayCircle size={18} /> Watch Trailer
+                                        </button>
+                                    )}
                                     
                                     {isCurrentInVault && (
                                         <button 
@@ -551,6 +631,174 @@ function MediaModal({ media, onClose }) {
 
                     {/* Bottom Section: Full Width Details */}
                     <div className="modal-bottom-section">
+                        {isCurrentInVault && currentVaultItem && (
+                            <div className="modal-curation-section" style={{
+                                background: 'rgba(255, 255, 255, 0.02)',
+                                border: '1px solid rgba(229, 9, 20, 0.2)',
+                                borderRadius: '12px',
+                                padding: '24px',
+                                marginBottom: '24px',
+                                boxShadow: 'var(--shadow-lg)'
+                            }}>
+                                <h3 style={{ fontSize: '1.25rem', marginBottom: '16px', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ color: 'var(--accent-primary)' }}>★</span> My Curation Vault
+                                </h3>
+                                
+                                {/* Rating Row */}
+                                <div style={{ marginBottom: '20px' }}>
+                                    <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 500 }}>
+                                        My Personal Rating
+                                    </label>
+                                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((starValue) => (
+                                            <Star 
+                                                key={starValue} 
+                                                size={22} 
+                                                fill={starValue <= myRating ? "#fbbf24" : "transparent"} 
+                                                color={starValue <= myRating ? "#fbbf24" : "#475569"} 
+                                                style={{ cursor: 'pointer', transition: 'transform 0.1s' }}
+                                                onClick={() => setMyRating(starValue)}
+                                            />
+                                        ))}
+                                        {myRating > 0 && (
+                                            <span style={{ marginLeft: '12px', fontSize: '1rem', color: '#fbbf24', fontWeight: 700 }}>
+                                                {myRating}/10
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Tags Row */}
+                                <div style={{ marginBottom: '20px' }}>
+                                    <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 500 }}>
+                                        Tags / Custom Collections
+                                    </label>
+                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                                        {myTags.map((tag, idx) => (
+                                            <span key={idx} style={{ 
+                                                background: 'rgba(229, 9, 20, 0.1)', 
+                                                border: '1px solid rgba(229, 9, 20, 0.2)', 
+                                                padding: '4px 10px', 
+                                                borderRadius: '20px', 
+                                                fontSize: '0.8rem', 
+                                                color: 'var(--text-primary)',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '6px'
+                                            }}>
+                                                #{tag}
+                                                <button 
+                                                    onClick={() => handleRemoveTag(tag)}
+                                                    style={{ 
+                                                        background: 'transparent', 
+                                                        border: 'none', 
+                                                        color: '#f87171', 
+                                                        cursor: 'pointer', 
+                                                        padding: 0, 
+                                                        fontSize: '0.85rem',
+                                                        display: 'flex',
+                                                        alignItems: 'center'
+                                                    }}
+                                                >
+                                                    ✕
+                                                </button>
+                                            </span>
+                                        ))}
+                                        {myTags.length === 0 && (
+                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                                                No tags added yet. Add custom tags below.
+                                            </span>
+                                        )}
+                                    </div>
+                                    
+                                    <form onSubmit={handleAddTag} style={{ display: 'flex', gap: '8px', maxWidth: '300px' }}>
+                                        <input 
+                                            type="text" 
+                                            placeholder="Add custom tag (e.g. favorites)" 
+                                            value={newTagInput}
+                                            onChange={(e) => setNewTagInput(e.target.value)}
+                                            style={{
+                                                flex: 1,
+                                                background: 'rgba(0,0,0,0.3)',
+                                                border: '1px solid rgba(255,255,255,0.1)',
+                                                color: 'white',
+                                                padding: '8px 12px',
+                                                borderRadius: '6px',
+                                                fontSize: '0.85rem',
+                                                outline: 'none'
+                                            }}
+                                        />
+                                        <button 
+                                            type="submit" 
+                                            className="btn" 
+                                            style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                                        >
+                                            Add
+                                        </button>
+                                    </form>
+                                </div>
+
+                                {/* Private Notes & Review Grid */}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 500 }}>
+                                            Private Notes (e.g. Watch notes)
+                                        </label>
+                                        <textarea 
+                                            value={myNotes}
+                                            onChange={(e) => setMyNotes(e.target.value)}
+                                            placeholder="Enter private notes..."
+                                            rows={3}
+                                            style={{
+                                                width: '100%',
+                                                background: 'rgba(0,0,0,0.3)',
+                                                border: '1px solid rgba(255,255,255,0.1)',
+                                                color: 'white',
+                                                padding: '10px',
+                                                borderRadius: '8px',
+                                                fontSize: '0.9rem',
+                                                outline: 'none',
+                                                resize: 'vertical',
+                                                fontFamily: 'inherit'
+                                            }}
+                                        />
+                                    </div>
+                                    
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 500 }}>
+                                            My Written Review
+                                        </label>
+                                        <textarea 
+                                            value={myReview}
+                                            onChange={(e) => setMyReview(e.target.value)}
+                                            placeholder="Write your review here..."
+                                            rows={3}
+                                            style={{
+                                                width: '100%',
+                                                background: 'rgba(0,0,0,0.3)',
+                                                border: '1px solid rgba(255,255,255,0.1)',
+                                                color: 'white',
+                                                padding: '10px',
+                                                borderRadius: '8px',
+                                                fontSize: '0.9rem',
+                                                outline: 'none',
+                                                resize: 'vertical',
+                                                fontFamily: 'inherit'
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <button 
+                                    className="btn" 
+                                    onClick={handleSaveCuration}
+                                    style={{ fontSize: '0.9rem', padding: '10px 16px' }}
+                                >
+                                    Save Curation Details
+                                </button>
+                            </div>
+                        )}
+
                         {isTV && details?.seasons && details.seasons.length > 0 && (
                             <div className="modal-episodes-section" style={{ marginBottom: '24px' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
@@ -843,6 +1091,88 @@ function MediaModal({ media, onClose }) {
                             cursor: 'pointer'
                         }}
                     >✕</button>
+                </div>
+            )}
+
+            {showTrailerLightbox && trailer && (
+                <div 
+                    className="lightbox-overlay" 
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setShowTrailerLightbox(false);
+                    }}
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        width: '100vw',
+                        height: '100vh',
+                        background: 'rgba(0, 0, 0, 0.95)',
+                        backdropFilter: 'blur(20px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 999999,
+                        cursor: 'default'
+                    }}
+                >
+                    <style>{`
+                        @keyframes lightboxZoom {
+                            from { transform: scale(0.95); opacity: 0; }
+                            to { transform: scale(1); opacity: 1; }
+                        }
+                    `}</style>
+                    <div 
+                        style={{
+                            width: '90%',
+                            maxWidth: '960px',
+                            aspectRatio: '16/9',
+                            position: 'relative',
+                            boxShadow: '0 25px 50px -12px rgba(229, 9, 20, 0.25)',
+                            borderRadius: '12px',
+                            overflow: 'hidden',
+                            border: '1px solid rgba(229, 9, 20, 0.2)',
+                            animation: 'lightboxZoom 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <YouTube 
+                            videoId={trailer.key} 
+                            opts={{ 
+                                width: '100%', 
+                                height: '100%', 
+                                playerVars: { 
+                                    autoplay: 1,
+                                    origin: window.location.origin
+                                } 
+                            }} 
+                            style={{ width: '100%', height: '100%' }}
+                        />
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setShowTrailerLightbox(false);
+                            }}
+                            style={{
+                                position: 'absolute',
+                                top: '15px',
+                                right: '15px',
+                                background: 'rgba(0,0,0,0.6)',
+                                border: '1px solid rgba(255,255,255,0.2)',
+                                color: 'white',
+                                padding: '10px',
+                                borderRadius: '50%',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                transition: 'all 0.2s',
+                                zIndex: 10
+                            }}
+                        >
+                            <X size={20} />
+                        </button>
+                    </div>
                 </div>
             )}
         </div>

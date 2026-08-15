@@ -66,6 +66,31 @@ function Stats() {
 
         const hoursWatched = Math.round((totalMinutes / 60) * 10) / 10;
 
+        const genresCountMap = {};
+        let uncategorizedCount = 0;
+        
+        vaultItems.forEach(item => {
+            if (item.genres && Array.isArray(item.genres) && item.genres.length > 0) {
+                item.genres.forEach(genre => {
+                    genresCountMap[genre] = (genresCountMap[genre] || 0) + 1;
+                });
+            } else {
+                if (item.type === 'anime') {
+                    genresCountMap["Animation"] = (genresCountMap["Animation"] || 0) + 1;
+                } else {
+                    uncategorizedCount++;
+                }
+            }
+        });
+
+        const genreData = Object.entries(genresCountMap)
+            .map(([genre, count]) => ({ genre, count }))
+            .sort((a, b) => b.count - a.count);
+
+        if (uncategorizedCount > 0) {
+            genreData.push({ genre: "Other/Uncategorized", count: uncategorizedCount });
+        }
+
         return {
             total,
             moviesCount,
@@ -76,7 +101,8 @@ function Stats() {
             planToWatch,
             completionRate,
             hoursWatched,
-            watchingList: watchingList.slice(0, 6) // Display top 6 currently watching trackers
+            watchingList: watchingList.slice(0, 6), // Display top 6 currently watching trackers
+            genreData
         };
     }, [vaultItems]);
 
@@ -310,6 +336,135 @@ function Stats() {
                             </div>
                         )}
                     </div>
+
+                    {/* CARD 5: Genre Distribution Donut Chart */}
+                    {stats.genreData && stats.genreData.length > 0 && (
+                        <div className="stats-grid-card" style={{
+                            background: 'var(--bg-glass)',
+                            backdropFilter: 'blur(20px)',
+                            border: 'var(--glass-border)',
+                            borderRadius: '16px',
+                            padding: '24px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.15)',
+                            gridColumn: '1 / -1'
+                        }}>
+                            <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '10px' }}>
+                                    <span style={{ textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
+                                        Genre Distribution
+                                    </span>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                        Breakdown of genres in your collection
+                                    </span>
+                                </div>
+
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '40px', alignItems: 'center', justifyContent: 'center', padding: '10px 0' }}>
+                                    
+                                    {/* SVG Donut */}
+                                    <div style={{ position: 'relative', width: '180px', height: '180px', flexShrink: 0 }}>
+                                        <svg viewBox="0 0 120 120" style={{ transform: 'rotate(-90deg)', width: '100%', height: '100%' }}>
+                                            {(() => {
+                                                const totalGenresCount = stats.genreData.reduce((acc, curr) => acc + curr.count, 0);
+                                                const colors = [
+                                                    "#e50914", // red
+                                                    "#3b82f6", // blue
+                                                    "#10b981", // green
+                                                    "#f59e0b", // amber
+                                                    "#8b5cf6", // purple
+                                                    "#ec4899", // pink
+                                                    "#06b6d4", // cyan
+                                                    "#f97316", // orange
+                                                    "#64748b"  // slate gray
+                                                ];
+
+                                                let accumulatedPercentage = 0;
+                                                const radius = 45;
+                                                const strokeWidth = 10;
+                                                const circumference = 2 * Math.PI * radius; // ~282.74
+
+                                                return stats.genreData.map((data, idx) => {
+                                                    const percentage = (data.count / totalGenresCount) * 100;
+                                                    const strokeLength = (percentage / 100) * circumference;
+                                                    const strokeOffset = circumference - (accumulatedPercentage / 100) * circumference;
+                                                    accumulatedPercentage += percentage;
+                                                    const color = colors[idx % colors.length];
+
+                                                    return (
+                                                        <circle 
+                                                            key={idx}
+                                                            cx="60" 
+                                                            cy="60" 
+                                                            r={radius} 
+                                                            stroke={color} 
+                                                            strokeWidth={strokeWidth} 
+                                                            fill="transparent" 
+                                                            strokeDasharray={`${strokeLength} ${circumference}`}
+                                                            strokeDashoffset={strokeOffset}
+                                                            strokeLinecap="round"
+                                                            style={{ transition: 'stroke-dashoffset 0.8s ease' }}
+                                                        />
+                                                    );
+                                                });
+                                            })()}
+                                        </svg>
+                                        <div style={{ 
+                                            position: 'absolute', 
+                                            top: '50%', 
+                                            left: '50%', 
+                                            transform: 'translate(-50%, -50%)', 
+                                            textAlign: 'center' 
+                                        }}>
+                                            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'white' }}>
+                                                {stats.genreData.reduce((acc, curr) => acc + curr.count, 0)}
+                                            </div>
+                                            <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                                Genre tags
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Chart Legend */}
+                                    <div style={{ flex: 1, minWidth: '220px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '16px' }}>
+                                        {(() => {
+                                            const totalGenresCount = stats.genreData.reduce((acc, curr) => acc + curr.count, 0);
+                                            const colors = [
+                                                "#e50914", // red
+                                                "#3b82f6", // blue
+                                                "#10b981", // green
+                                                "#f59e0b", // amber
+                                                "#8b5cf6", // purple
+                                                "#ec4899", // pink
+                                                "#06b6d4", // cyan
+                                                "#f97316", // orange
+                                                "#64748b"  // slate gray
+                                            ];
+
+                                            return stats.genreData.map((data, idx) => {
+                                                const percentage = Math.round((data.count / totalGenresCount) * 100);
+                                                const color = colors[idx % colors.length];
+                                                return (
+                                                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: color, flexShrink: 0 }} />
+                                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                                                                {data.genre}
+                                                            </span>
+                                                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                                                                {data.count} title{data.count > 1 ? 's' : ''} ({percentage}%)
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            });
+                                        })()}
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

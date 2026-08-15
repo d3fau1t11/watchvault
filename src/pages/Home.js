@@ -204,7 +204,7 @@ function Home() {
             <SearchBar query={currentQuery} setQuery={setCurrentQuery} onSearch={handleSearch} />
 
             {/* Continue Watching Section */}
-            {currentUser && getWatchingItems().length > 0 && (
+            {isTrending && currentUser && getWatchingItems().length > 0 && (
                 <div style={{ marginBottom: '40px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
                         <Play size={24} style={{ color: 'var(--accent-primary)' }} />

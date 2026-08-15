@@ -99,7 +99,18 @@ function Vault() {
     const [searchQuery, setSearchQuery] = useState("");
     const [filterType, setFilterType] = useState("all");
     const [filterStatus, setFilterStatus] = useState("all");
+    const [filterTag, setFilterTag] = useState("all");
     const [sortBy, setSortBy] = useState("date_desc");
+
+    const allTags = useMemo(() => {
+        const tagsSet = new Set();
+        vaultItems.forEach(item => {
+            if (item.tags && Array.isArray(item.tags)) {
+                item.tags.forEach(tag => tagsSet.add(tag));
+            }
+        });
+        return Array.from(tagsSet).sort();
+    }, [vaultItems]);
 
 
     const handleUpdateStatus = async (id, newStatus) => {
@@ -325,6 +336,11 @@ function Vault() {
             result = result.filter(item => item.status === filterStatus);
         }
 
+        // Filter Tag
+        if (filterTag !== "all") {
+            result = result.filter(item => item.tags && item.tags.includes(filterTag));
+        }
+
         // Sort
         result.sort((a, b) => {
             if (sortBy === "title_asc") {
@@ -338,7 +354,7 @@ function Vault() {
         });
 
         return result;
-    }, [vaultItems, searchQuery, filterType, filterStatus, sortBy]);
+    }, [vaultItems, searchQuery, filterType, filterStatus, filterTag, sortBy]);
 
     if (vaultLoading) {
         return <div className="page container" style={{ textAlign: "center" }}>Loading your vault...</div>;
@@ -530,6 +546,15 @@ function Vault() {
                             <option value="Watching">Watching</option>
                             <option value="Completed">Completed</option>
                         </select>
+
+                        {allTags.length > 0 && (
+                            <select className="status-select" value={filterTag} onChange={(e) => setFilterTag(e.target.value)}>
+                                <option value="all">All Tags</option>
+                                {allTags.map(tag => (
+                                    <option key={tag} value={tag}>#{tag}</option>
+                                ))}
+                            </select>
+                        )}
 
                         <select className="status-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ marginLeft: 'auto' }}>
                             <option value="date_desc">Newest First</option>
