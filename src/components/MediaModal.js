@@ -9,6 +9,30 @@ import toast from "react-hot-toast";
 import { X, Star, Plus, Check, ArrowLeft, Calendar, Trash2, PlayCircle } from "lucide-react";
 import YouTube from "react-youtube";
 
+const STANDARD_CATEGORIES = [
+    "Uncategorized",
+    "Action",
+    "Adventure",
+    "Animation",
+    "Anime",
+    "Comedy",
+    "Crime",
+    "Documentary",
+    "Drama",
+    "Family",
+    "Fantasy",
+    "History",
+    "Horror",
+    "Kids",
+    "Music",
+    "Mystery",
+    "Romance",
+    "Sci-Fi",
+    "Thriller",
+    "War",
+    "Western"
+];
+
 function MediaModal({ media, onClose }) {
     const [mediaHistory, setMediaHistory] = useState([media]);
     const currentMedia = mediaHistory[mediaHistory.length - 1];
@@ -31,6 +55,8 @@ function MediaModal({ media, onClose }) {
     const [myNotes, setMyNotes] = useState("");
     const [myTags, setMyTags] = useState([]);
     const [newTagInput, setNewTagInput] = useState("");
+    const [myCategory, setMyCategory] = useState("Uncategorized");
+    const [customCategoryInput, setCustomCategoryInput] = useState("");
     const [showTrailerLightbox, setShowTrailerLightbox] = useState(false);
 
     const currentVaultItem = getVaultItem(currentMedia.tmdbId || currentMedia.id);
@@ -44,11 +70,16 @@ function MediaModal({ media, onClose }) {
                 setMyReview(currentVaultItem.review || "");
                 setMyNotes(currentVaultItem.notes || "");
                 setMyTags(currentVaultItem.tags || []);
+                const itemCat = currentVaultItem.category || "Uncategorized";
+                setMyCategory(STANDARD_CATEGORIES.includes(itemCat) ? itemCat : "Custom");
+                setCustomCategoryInput(STANDARD_CATEGORIES.includes(itemCat) ? "" : itemCat);
             } else {
                 setMyRating(0);
                 setMyReview("");
                 setMyNotes("");
                 setMyTags([]);
+                setMyCategory("Uncategorized");
+                setCustomCategoryInput("");
             }
             setNewTagInput("");
             lastVaultIdRef.current = vaultId;
@@ -58,11 +89,13 @@ function MediaModal({ media, onClose }) {
     const handleSaveCuration = async () => {
         if (!currentVaultItem) return;
         const loadingToast = toast.loading("Updating curation details...");
+        const finalCategory = myCategory === "Custom" ? customCategoryInput.trim() : myCategory;
         const res = await updateVaultItemDetails(currentVaultItem.id, {
             rating: myRating,
             review: myReview,
             notes: myNotes,
-            tags: myTags
+            tags: myTags,
+            category: finalCategory || "Uncategorized"
         });
         if (res.success) {
             toast.success("Curation details saved!", { id: loadingToast });
@@ -664,6 +697,58 @@ function MediaModal({ media, onClose }) {
                                             <span style={{ marginLeft: '12px', fontSize: '1rem', color: '#fbbf24', fontWeight: 700 }}>
                                                 {myRating}/10
                                             </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Category Row */}
+                                <div style={{ marginBottom: '20px' }}>
+                                    <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 500 }}>
+                                        Category Classification
+                                    </label>
+                                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                        <select 
+                                            value={myCategory} 
+                                            onChange={(e) => {
+                                                setMyCategory(e.target.value);
+                                                if (e.target.value !== "Custom") {
+                                                    setCustomCategoryInput("");
+                                                }
+                                            }}
+                                            style={{
+                                                background: 'rgba(0,0,0,0.3)',
+                                                border: '1px solid rgba(255,255,255,0.1)',
+                                                color: 'white',
+                                                padding: '8px 12px',
+                                                borderRadius: '6px',
+                                                fontSize: '0.85rem',
+                                                outline: 'none',
+                                                minWidth: '150px'
+                                            }}
+                                        >
+                                            {STANDARD_CATEGORIES.map(cat => (
+                                                <option key={cat} value={cat}>{cat}</option>
+                                            ))}
+                                            <option value="Custom">Custom...</option>
+                                        </select>
+                                        
+                                        {myCategory === "Custom" && (
+                                            <input 
+                                                type="text"
+                                                placeholder="Enter custom category"
+                                                value={customCategoryInput}
+                                                onChange={(e) => setCustomCategoryInput(e.target.value)}
+                                                style={{
+                                                    background: 'rgba(0,0,0,0.3)',
+                                                    border: '1px solid rgba(255,255,255,0.1)',
+                                                    color: 'white',
+                                                    padding: '8px 12px',
+                                                    borderRadius: '6px',
+                                                    fontSize: '0.85rem',
+                                                    outline: 'none',
+                                                    width: '200px'
+                                                }}
+                                            />
                                         )}
                                     </div>
                                 </div>

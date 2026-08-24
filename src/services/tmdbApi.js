@@ -97,3 +97,11 @@ export const getTVDetailsWithAiring = async (id) => {
         `${BASE_URL}/tv/${id}?api_key=${API_KEY}`
     );
 };
+
+export const discoverMedia = async (type = "movie", page = 1, genreId = null) => {
+    let url = `${BASE_URL}/discover/${type}?api_key=${API_KEY}&page=${page}&sort_by=popularity.desc`;
+    if (genreId) {
+        url += `&with_genres=${genreId}`;
+    }
+    return fetchWithCacheSilent(url);
+};

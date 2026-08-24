@@ -26,6 +26,8 @@ export const addToVault = async (userId, mediaItem, status = "Plan to Watch") =>
             genresList = mediaItem.genre_ids.map(id => TMDB_GENRES[id] || "Unknown").filter(g => g !== "Unknown");
         }
 
+        const defaultCategory = mediaItem.category || (genresList.length > 0 ? genresList[0] : "Uncategorized");
+
         const docRef = await addDoc(collection(db, COLLECTION_NAME), {
             userId,
             tmdbId: mediaItem.id,
@@ -34,6 +36,7 @@ export const addToVault = async (userId, mediaItem, status = "Plan to Watch") =>
             type: mediaType,
             status,
             genres: genresList,
+            category: defaultCategory,
             createdAt: serverTimestamp(),
         });
         return { success: true, id: docRef.id };
