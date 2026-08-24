@@ -61,6 +61,21 @@ function VaultItem({ item, onUpdateStatus, onUpdateType, onUpdateProgress, onRem
                                 ★ {item.rating}
                             </span>
                         )}
+                        {item.category && (
+                            <span style={{ 
+                                background: 'rgba(59, 130, 246, 0.15)', 
+                                color: '#60a5fa', 
+                                padding: '2px 6px', 
+                                borderRadius: '4px', 
+                                fontSize: '0.75rem', 
+                                fontWeight: 600,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                border: '1px solid rgba(59, 130, 246, 0.3)'
+                            }}>
+                                {item.category}
+                            </span>
+                        )}
                     </div>
                     {episodeName && (
                         <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontStyle: 'italic', marginTop: '2px', display: 'block', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

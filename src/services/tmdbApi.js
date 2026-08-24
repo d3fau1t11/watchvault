@@ -98,10 +98,18 @@ export const getTVDetailsWithAiring = async (id) => {
     );
 };
 
-export const discoverMedia = async (type = "movie", page = 1, genreId = null) => {
-    let url = `${BASE_URL}/discover/${type}?api_key=${API_KEY}&page=${page}&sort_by=popularity.desc`;
-    if (genreId) {
+export const discoverMedia = async (type = "movie", page = 1, genreId = null, includeAdult = false) => {
+    let url = `${BASE_URL}/discover/${type}?api_key=${API_KEY}&page=${page}&sort_by=popularity.desc&include_adult=${includeAdult}`;
+    if (genreId && genreId !== "adult") {
         url += `&with_genres=${genreId}`;
     }
     return fetchWithCacheSilent(url);
+};
+
+export const getMovieGenres = async () => {
+    return fetchWithCache(`${BASE_URL}/genre/movie/list?api_key=${API_KEY}`);
+};
+
+export const getTVGenres = async () => {
+    return fetchWithCache(`${BASE_URL}/genre/tv/list?api_key=${API_KEY}`);
 };

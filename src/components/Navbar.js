@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { LogOut, LayoutDashboard, Search, Sparkles, BarChart3, Bell, ChevronLeft, ChevronRight } from "lucide-react";
+import { LogOut, LayoutDashboard, Search, Sparkles, BarChart3, Bell, ChevronLeft, ChevronRight, Shuffle, FolderOpen } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useVault } from "../context/VaultContext";
 import { getTVDetailsWithAiring } from "../services/tmdbApi";
@@ -234,6 +234,20 @@ function Navbar() {
                             >
                                 <BarChart3 size={20} />
                                 <span className="sidebar-text">Stats</span>
+                            </Link>
+                            <Link 
+                                to="/shuffle" 
+                                className={`sidebar-link ${location.pathname === '/shuffle' ? 'active' : ''}`}
+                            >
+                                <Shuffle size={20} />
+                                <span className="sidebar-text">Shuffle</span>
+                            </Link>
+                            <Link 
+                                to="/categories" 
+                                className={`sidebar-link ${location.pathname === '/categories' ? 'active' : ''}`}
+                            >
+                                <FolderOpen size={20} />
+                                <span className="sidebar-text">Categories</span>
                             </Link>
                         </>
                     )}

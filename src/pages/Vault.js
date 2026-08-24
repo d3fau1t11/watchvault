@@ -8,7 +8,7 @@ import toast from "react-hot-toast";
 import VaultItem from "../components/VaultItem";
 import FilterTabs from "../components/FilterTabs";
 import EmptyState from "../components/EmptyState";
-import { Upload, Download, Search, Trash2, Filter, Calendar } from "lucide-react";
+import { Upload, Download, Search, Trash2, Filter, Calendar, Grid, Layers } from "lucide-react";
 
 const MediaModal = lazy(() => import("../components/MediaModal"));
 
@@ -100,7 +100,9 @@ function Vault() {
     const [filterType, setFilterType] = useState("all");
     const [filterStatus, setFilterStatus] = useState("all");
     const [filterTag, setFilterTag] = useState("all");
+    const [filterCategory, setFilterCategory] = useState("all");
     const [sortBy, setSortBy] = useState("date_desc");
+    const [viewMode, setViewMode] = useState("grid"); // grid or grouped
 
     const allTags = useMemo(() => {
         const tagsSet = new Set();
@@ -110,6 +112,15 @@ function Vault() {
             }
         });
         return Array.from(tagsSet).sort();
+    }, [vaultItems]);
+
+    const allCategories = useMemo(() => {
+        const categoriesSet = new Set();
+        vaultItems.forEach(item => {
+            const cat = item.category || "Uncategorized";
+            categoriesSet.add(cat);
+        });
+        return Array.from(categoriesSet).sort();
     }, [vaultItems]);
 
 
@@ -341,6 +352,14 @@ function Vault() {
             result = result.filter(item => item.tags && item.tags.includes(filterTag));
         }
 
+        // Filter Category
+        if (filterCategory !== "all") {
+            result = result.filter(item => {
+                const itemCat = item.category || "Uncategorized";
+                return itemCat === filterCategory;
+            });
+        }
+
         // Sort
         result.sort((a, b) => {
             if (sortBy === "title_asc") {
@@ -354,7 +373,19 @@ function Vault() {
         });
 
         return result;
-    }, [vaultItems, searchQuery, filterType, filterStatus, filterTag, sortBy]);
+    }, [vaultItems, searchQuery, filterType, filterStatus, filterTag, filterCategory, sortBy]);
+
+    const groupedItems = useMemo(() => {
+        const groups = {};
+        filteredAndSortedItems.forEach(item => {
+            const cat = item.category || "Uncategorized";
+            if (!groups[cat]) {
+                groups[cat] = [];
+            }
+            groups[cat].push(item);
+        });
+        return groups;
+    }, [filteredAndSortedItems]);
 
     if (vaultLoading) {
         return <div className="page container" style={{ textAlign: "center" }}>Loading your vault...</div>;
@@ -556,32 +587,112 @@ function Vault() {
                             </select>
                         )}
 
-                        <select className="status-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ marginLeft: 'auto' }}>
+                        {allCategories.length > 0 && (
+                            <select className="status-select" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+                                <option value="all">All Categories</option>
+                                {allCategories.map(cat => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                            </select>
+                        )}
+
+                        <div style={{ display: 'flex', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', overflow: 'hidden', marginLeft: 'auto' }}>
+                            <button 
+                                onClick={() => setViewMode("grid")}
+                                title="Grid View"
+                                style={{
+                                    background: viewMode === "grid" ? 'var(--accent-primary)' : 'transparent',
+                                    border: 'none',
+                                    color: 'white',
+                                    padding: '6px 12px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    transition: 'background 0.2s'
+                                }}
+                            >
+                                <Grid size={16} />
+                            </button>
+                            <button 
+                                onClick={() => setViewMode("grouped")}
+                                title="Group by Category"
+                                style={{
+                                    background: viewMode === "grouped" ? 'var(--accent-primary)' : 'transparent',
+                                    border: 'none',
+                                    color: 'white',
+                                    padding: '6px 12px',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    transition: 'background 0.2s'
+                                }}
+                            >
+                                <Layers size={16} />
+                            </button>
+                        </div>
+
+                        <select className="status-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
                             <option value="date_desc">Newest First</option>
                             <option value="date_asc">Oldest First</option>
                             <option value="title_asc">Alphabetical (A-Z)</option>
                         </select>
                     </div>
 
-                    <div className="vault-list">
-                        {filteredAndSortedItems.length > 0 ? (
-                            filteredAndSortedItems.map((item) => (
-                                <VaultItem 
-                                    key={item.id} 
-                                    item={item} 
-                                    onUpdateStatus={handleUpdateStatus}
-                                    onUpdateType={handleUpdateType}
-                                    onUpdateProgress={handleUpdateProgress}
-                                    onRemove={handleRemove}
-                                    onClick={() => setSelectedMedia(item)}
-                                />
-                            ))
-                        ) : (
-                            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
-                                {searchQuery ? `No items found matching "${searchQuery}".` : "No items match your current filters."}
-                            </div>
-                        )}
-                    </div>
+                    {viewMode === "grid" ? (
+                        <div className="vault-list">
+                            {filteredAndSortedItems.length > 0 ? (
+                                filteredAndSortedItems.map((item) => (
+                                    <VaultItem 
+                                        key={item.id} 
+                                        item={item} 
+                                        onUpdateStatus={handleUpdateStatus}
+                                        onUpdateType={handleUpdateType}
+                                        onUpdateProgress={handleUpdateProgress}
+                                        onRemove={handleRemove}
+                                        onClick={() => setSelectedMedia(item)}
+                                    />
+                                ))
+                            ) : (
+                                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                                    {searchQuery ? `No items found matching "${searchQuery}".` : "No items match your current filters."}
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="vault-grouped-list">
+                            {Object.keys(groupedItems).length > 0 ? (
+                                Object.keys(groupedItems).sort().map((categoryName) => {
+                                    const items = groupedItems[categoryName];
+                                    if (items.length === 0) return null;
+                                    return (
+                                        <div key={categoryName} className="category-section">
+                                            <div className="category-row-header">
+                                                <h3 className="category-title">{categoryName}</h3>
+                                                <span className="category-count">{items.length} Title{items.length > 1 ? 's' : ''}</span>
+                                            </div>
+                                            <div className="category-row-scroll">
+                                                {items.map((item) => (
+                                                    <VaultItem 
+                                                        key={item.id} 
+                                                        item={item} 
+                                                        onUpdateStatus={handleUpdateStatus}
+                                                        onUpdateType={handleUpdateType}
+                                                        onUpdateProgress={handleUpdateProgress}
+                                                        onRemove={handleRemove}
+                                                        onClick={() => setSelectedMedia(item)}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                                    {searchQuery ? `No items found matching "${searchQuery}".` : "No items match your current filters."}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </>
             )}
 
