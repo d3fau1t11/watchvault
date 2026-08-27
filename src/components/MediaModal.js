@@ -8,30 +8,7 @@ import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { X, Star, Plus, Check, ArrowLeft, Calendar, Trash2, PlayCircle } from "lucide-react";
 import YouTube from "react-youtube";
-
-const STANDARD_CATEGORIES = [
-    "Uncategorized",
-    "Action",
-    "Adventure",
-    "Animation",
-    "Anime",
-    "Comedy",
-    "Crime",
-    "Documentary",
-    "Drama",
-    "Family",
-    "Fantasy",
-    "History",
-    "Horror",
-    "Kids",
-    "Music",
-    "Mystery",
-    "Romance",
-    "Sci-Fi",
-    "Thriller",
-    "War",
-    "Western"
-];
+import { STANDARD_CATEGORIES } from "../utils/categories";
 
 function MediaModal({ media, onClose }) {
     const [mediaHistory, setMediaHistory] = useState([media]);

@@ -18,7 +18,7 @@ function App() {
         <AuthProvider>
             <VaultProvider>
                 <Router>
-                    <div className="App">
+                    <div>
                         <Toaster
                             position="bottom-right"
                             toastOptions={{

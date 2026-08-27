@@ -1,7 +1,11 @@
 import { db } from "./firebase";
 import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc, query, where, serverTimestamp, writeBatch } from "firebase/firestore";
+import { deriveCategory } from "../utils/categories";
 
 const COLLECTION_NAME = "vault";
+
+/* Firestore caps a write batch at 500 operations. */
+const BATCH_LIMIT = 500;
 
 export const addToVault = async (userId, mediaItem, status = "Plan to Watch") => {
     try {
@@ -26,7 +30,11 @@ export const addToVault = async (userId, mediaItem, status = "Plan to Watch") =>
             genresList = mediaItem.genre_ids.map(id => TMDB_GENRES[id] || "Unknown").filter(g => g !== "Unknown");
         }
 
-        const defaultCategory = mediaItem.category || (genresList.length > 0 ? genresList[0] : "Uncategorized");
+        /* Derived through the shared mapping so a new item lands in one of the
+           categories the dropdown actually offers. The old behaviour took
+           genresList[0] verbatim, which could write names like
+           "Sci-Fi & Fantasy" that the select could never round-trip. */
+        const defaultCategory = mediaItem.category || deriveCategory({ type: mediaType, genres: genresList });
 
         const docRef = await addDoc(collection(db, COLLECTION_NAME), {
             userId,
@@ -112,6 +120,39 @@ export const updateVaultItemDetails = async (itemId, detailsData) => {
         return { success: true };
     } catch (error) {
         console.error("Error updating vault item details:", error);
+        return { success: false, error: error.message };
+    }
+};
+
+/* Applies many small field updates in as few round trips as Firestore allows.
+   `updates` is [{ id, data }, ...]; anything past 500 ops rolls into the next
+   batch. Returns the number of documents actually written. */
+export const bulkUpdateVaultItems = async (updates) => {
+    if (!Array.isArray(updates) || updates.length === 0) {
+        return { success: true, updated: 0 };
+    }
+
+    try {
+        let updated = 0;
+
+        for (let i = 0; i < updates.length; i += BATCH_LIMIT) {
+            const chunk = updates.slice(i, i + BATCH_LIMIT);
+            const batch = writeBatch(db);
+
+            chunk.forEach(({ id, data }) => {
+                batch.update(doc(db, COLLECTION_NAME, id), {
+                    ...data,
+                    updatedAt: serverTimestamp()
+                });
+            });
+
+            await batch.commit();
+            updated += chunk.length;
+        }
+
+        return { success: true, updated };
+    } catch (error) {
+        console.error("Error bulk updating vault items:", error);
         return { success: false, error: error.message };
     }
 };

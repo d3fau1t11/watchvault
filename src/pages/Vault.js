@@ -1,14 +1,15 @@
 import { useState, useEffect, useMemo, useRef, lazy, Suspense } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useVault } from "../context/VaultContext";
-import { updateVaultItemStatus, updateVaultItemType, removeVaultItem, addToVault, clearVault, updateVaultItemProgress } from "../services/firestoreService";
-import { searchMedia, getTVDetailsWithAiring } from "../services/tmdbApi";
+import { updateVaultItemStatus, updateVaultItemType, removeVaultItem, addToVault, clearVault, updateVaultItemProgress, bulkUpdateVaultItems } from "../services/firestoreService";
+import { searchMedia, getTVDetailsWithAiring, getMediaDetails } from "../services/tmdbApi";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import VaultItem from "../components/VaultItem";
 import FilterTabs from "../components/FilterTabs";
 import EmptyState from "../components/EmptyState";
-import { Upload, Download, Search, Trash2, Filter, Calendar, Grid, Layers } from "lucide-react";
+import { deriveCategory, needsCategory, needsGenreLookup, genreNames } from "../utils/categories";
+import { Upload, Download, Search, Trash2, Filter, Calendar, Grid, Layers, FolderTree } from "lucide-react";
 
 const MediaModal = lazy(() => import("../components/MediaModal"));
 
@@ -122,6 +123,81 @@ function Vault() {
         });
         return Array.from(categoriesSet).sort();
     }, [vaultItems]);
+
+    /* Items added before the vault stored a `category` field, plus any whose
+       category is one of the non-selectable legacy names. */
+    const uncategorizedItems = useMemo(
+        () => vaultItems.filter(needsCategory),
+        [vaultItems]
+    );
+
+    const [categorizing, setCategorizing] = useState(false);
+
+    /* Fills in categories for the items above. Genres are used when the item
+       already carries them; the oldest items predate that field too, so those
+       are looked up from TMDB once and the genres are saved alongside the
+       category — which also repairs their slice of the Stats genre chart. */
+    const handleAutoCategorize = async () => {
+        if (categorizing || uncategorizedItems.length === 0) return;
+
+        setCategorizing(true);
+        const loadingToast = toast.loading(
+            `Categorizing ${uncategorizedItems.length} title${uncategorizedItems.length > 1 ? 's' : ''}…`
+        );
+
+        try {
+            const updates = [];
+            let lookupFailures = 0;
+
+            for (const item of uncategorizedItems) {
+                let genres = genreNames(item.genres);
+
+                if (needsGenreLookup(item)) {
+                    const tmdbId = item.tmdbId || item.id;
+                    const lookupType = item.type === 'movie' ? 'movie' : 'tv';
+                    try {
+                        const details = await getMediaDetails(tmdbId, lookupType);
+                        genres = genreNames(details?.genres);
+                    } catch (err) {
+                        console.error(`Genre lookup failed for "${item.title}":`, err);
+                    }
+                }
+
+                const category = deriveCategory({ type: item.type, genres });
+
+                if (category === "Uncategorized") {
+                    lookupFailures++;
+                    continue;
+                }
+
+                const data = { category };
+                // Only persist genres we actually had to go and fetch.
+                if (genres.length > 0 && genreNames(item.genres).length === 0) {
+                    data.genres = genres;
+                }
+                updates.push({ id: item.id, data });
+            }
+
+            if (updates.length === 0) {
+                toast.error("Could not determine a category for any of these titles.", { id: loadingToast });
+                return;
+            }
+
+            const response = await bulkUpdateVaultItems(updates);
+
+            if (response.success) {
+                const skipped = lookupFailures > 0 ? ` ${lookupFailures} could not be matched.` : "";
+                toast.success(
+                    `Categorized ${response.updated} title${response.updated > 1 ? 's' : ''}.${skipped}`,
+                    { id: loadingToast }
+                );
+            } else {
+                toast.error("Failed to save categories.", { id: loadingToast });
+            }
+        } finally {
+            setCategorizing(false);
+        }
+    };
 
 
     const handleUpdateStatus = async (id, newStatus) => {
@@ -405,6 +481,19 @@ function Vault() {
                         style={{ display: 'none' }}
                         onChange={handleFileUpload}
                     />
+                    {uncategorizedItems.length > 0 && (
+                        <button
+                            className="btn btn--soft btn--sm"
+                            onClick={handleAutoCategorize}
+                            disabled={categorizing}
+                            title="Assign a category to titles that don't have one yet"
+                        >
+                            <FolderTree size={16} />
+                            {categorizing
+                                ? 'Categorizing…'
+                                : `Categorize ${uncategorizedItems.length}`}
+                        </button>
+                    )}
                     <button className="btn btn--outline btn--sm" onClick={() => fileInputRef.current.click()}>
                         <Upload size={16} /> Import
                     </button>
@@ -609,7 +698,7 @@ function Vault() {
                                                 <h3 className="category-title">{categoryName}</h3>
                                                 <span className="category-count">{items.length} Title{items.length > 1 ? 's' : ''}</span>
                                             </div>
-                                            <div className="category-row-scroll">
+                                            <div className="category-items">
                                                 {items.map((item) => (
                                                     <VaultItem 
                                                         key={item.id} 
