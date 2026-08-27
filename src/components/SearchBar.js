@@ -62,8 +62,8 @@ function SearchBar({ query, setQuery, onSearch }) {
     };
 
     return (
-        <div ref={wrapperRef} style={{ position: 'relative', width: '100%', maxWidth: '600px', margin: '0 auto 40px' }}>
-            <form className="search-container" style={{ margin: 0, position: 'relative' }} onSubmit={handleSubmit}>
+        <div ref={wrapperRef} className="search-wrap">
+            <form className="search-container" onSubmit={handleSubmit}>
                 <input
                     type="text"
                     className="search-input"
@@ -76,30 +76,17 @@ function SearchBar({ query, setQuery, onSearch }) {
                     onFocus={() => setShowSuggestions(true)}
                 />
                 {query && (
-                    <button 
-                        type="button" 
+                    <button
+                        type="button"
+                        className="search-clear"
                         onClick={handleClear}
-                        style={{
-                            position: 'absolute',
-                            right: '80px',
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            background: 'transparent',
-                            border: 'none',
-                            color: 'var(--text-secondary)',
-                            cursor: 'pointer',
-                            padding: '4px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            zIndex: 5
-                        }}
                         title="Clear Search"
+                        aria-label="Clear search"
                     >
                         <X size={18} />
                     </button>
                 )}
-                <button type="submit" className="btn search-btn">
+                <button type="submit" className="btn search-btn" aria-label="Search">
                     <Search size={20} />
                 </button>
             </form>

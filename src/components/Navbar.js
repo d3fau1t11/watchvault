@@ -269,153 +269,120 @@ function Navbar() {
                     </Link>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginLeft: 'auto' }}>
+                <div className="header-actions">
                     {!isOnline && (
-                        <span style={{
-                            background: 'rgba(239, 68, 68, 0.15)',
-                            color: '#f87171',
-                            border: '1px solid rgba(239, 68, 68, 0.3)',
-                            padding: '2px 8px',
-                            borderRadius: '12px',
-                            fontSize: '0.7rem',
-                            fontWeight: '600',
-                            letterSpacing: '0.5px',
-                            textTransform: 'uppercase'
-                        }}>
-                            Offline
-                        </span>
+                        <span className="badge-offline">Offline</span>
                     )}
 
                     {currentUser ? (
                         <>
                             {/* Notification Bell */}
                             <div className="notifications-wrapper" ref={dropdownRef}>
-                                <button 
-                                    className="notification-bell-btn" 
+                                <button
+                                    className={`notification-bell-btn${showDropdown ? ' notification-bell-btn--open' : ''}`}
                                     onClick={() => setShowDropdown(!showDropdown)}
                                     title="Notifications"
-                                    style={{ color: showDropdown ? 'var(--text-primary)' : 'var(--text-secondary)' }}
+                                    aria-label="Notifications"
                                 >
-                                    <Bell size={20} style={{ verticalAlign: 'middle' }} />
+                                    <Bell size={20} />
                                     {activeNotifications.length > 0 && (
                                         <span className="notification-badge">
                                             {activeNotifications.length}
                                         </span>
                                     )}
                                 </button>
-                                
+
                                 {showDropdown && (
                                     <div className="notifications-dropdown" onClick={(e) => e.stopPropagation()}>
-                                        <div className="notification-header" style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingBottom: '12px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                                                 <h3 style={{ margin: 0, fontSize: '1rem' }}>Notifications</h3>
-                                                 <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                                                     {activeNotifications.length} New Releases
-                                                 </span>
-                                             </div>
-                                             {activeNotifications.length > 0 && (
-                                                 <div style={{ display: 'flex', gap: '8px', width: '100%', marginTop: '4px' }}>
-                                                     <button 
-                                                         onClick={handleMarkAllWatched}
-                                                         style={{
-                                                             flex: 1,
-                                                             background: 'rgba(229, 9, 20, 0.1)',
-                                                             border: '1px solid rgba(229, 9, 20, 0.2)',
-                                                             color: 'var(--accent-primary)',
-                                                             borderRadius: '4px',
-                                                             padding: '6px 8px',
-                                                             fontSize: '0.7rem',
-                                                             fontWeight: 600,
-                                                             cursor: 'pointer',
-                                                             transition: 'all 0.2s',
-                                                             fontFamily: 'inherit'
-                                                         }}
-                                                     >
-                                                         Mark All Watched
-                                                     </button>
-                                                     <button 
-                                                         onClick={handleDismissAll}
-                                                         style={{
-                                                             flex: 1,
-                                                             background: 'rgba(255, 255, 255, 0.05)',
-                                                             border: '1px solid rgba(255, 255, 255, 0.1)',
-                                                             color: 'var(--text-secondary)',
-                                                             borderRadius: '4px',
-                                                             padding: '6px 8px',
-                                                             fontSize: '0.7rem',
-                                                             fontWeight: 600,
-                                                             cursor: 'pointer',
-                                                             transition: 'all 0.2s',
-                                                             fontFamily: 'inherit'
-                                                         }}
-                                                     >
-                                                         Dismiss All
-                                                     </button>
-                                                 </div>
-                                             )}
-                                         </div>
+                                        <div className="notification-header">
+                                            <div className="notification-header__row">
+                                                <h3>Notifications</h3>
+                                                <span className="notification-header__count">
+                                                    {activeNotifications.length} New Releases
+                                                </span>
+                                            </div>
+                                            {activeNotifications.length > 0 && (
+                                                <div className="notification-header__actions">
+                                                    <button
+                                                        className="btn btn--soft btn--xs btn--flex"
+                                                        onClick={handleMarkAllWatched}
+                                                    >
+                                                        Mark All Watched
+                                                    </button>
+                                                    <button
+                                                        className="btn btn--ghost btn--xs btn--flex"
+                                                        onClick={handleDismissAll}
+                                                    >
+                                                        Dismiss All
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
                                         {activeNotifications.length === 0 ? (
-                                            <div style={{ padding: '24px 12px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                                            <div className="notification-empty">
                                                 No new episodes. You're all caught up!
                                             </div>
                                         ) : (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                                {activeNotifications.map(show => (
-                                                    <div 
-                                                        key={show.id} 
-                                                        className="notification-item"
-                                                        onClick={() => {
-                                                            setShowDropdown(false);
-                                                        }}
-                                                    >
-                                                        <img 
-                                                            src={show.poster ? (show.poster.startsWith("http://") || show.poster.startsWith("https://") ? show.poster : `https://image.tmdb.org/t/p/w92${show.poster}`) : 'https://via.placeholder.com/45x65?text=No+Poster'} 
-                                                            alt={show.title} 
-                                                            className="notification-poster"
-                                                        />
-                                                        <div className="notification-content">
-                                                            <div className="notification-title">{show.title}</div>
-                                                            <div className="notification-text">
-                                                                S{show.lastEpisode.season_number} E{show.lastEpisode.episode_number} is out!
-                                                            </div>
-                                                            <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                                                                <button 
-                                                                    className="notification-action-btn"
-                                                                    onClick={(e) => handleMarkEpisodeWatched(e, show)}
-                                                                    style={{ flex: 1, padding: '4px 6px', fontSize: '0.75rem' }}
-                                                                >
-                                                                    Mark Watched
-                                                                </button>
-                                                                <button 
-                                                                    className="notification-action-btn"
-                                                                    onClick={(e) => handleMarkAsRead(e, show)}
-                                                                    style={{ 
-                                                                        flex: 1, 
-                                                                        padding: '4px 6px', 
-                                                                        fontSize: '0.75rem',
-                                                                        background: 'rgba(255, 255, 255, 0.05)',
-                                                                        color: 'var(--text-secondary)',
-                                                                        border: '1px solid rgba(255, 255, 255, 0.1)'
-                                                                    }}
-                                                                >
-                                                                    Dismiss
-                                                                </button>
+                                            <div className="notification-list">
+                                                {activeNotifications.map(show => {
+                                                    const notifPoster = show.poster
+                                                        ? (show.poster.startsWith("http://") || show.poster.startsWith("https://")
+                                                            ? show.poster
+                                                            : `https://image.tmdb.org/t/p/w92${show.poster}`)
+                                                        : null;
+
+                                                    return (
+                                                        <div
+                                                            key={show.id}
+                                                            className="notification-item"
+                                                            onClick={() => {
+                                                                setShowDropdown(false);
+                                                            }}
+                                                        >
+                                                            {notifPoster ? (
+                                                                <img
+                                                                    src={notifPoster}
+                                                                    alt={show.title}
+                                                                    className="notification-poster"
+                                                                />
+                                                            ) : (
+                                                                <div className="notification-poster poster-ph">No Poster</div>
+                                                            )}
+                                                            <div className="notification-content">
+                                                                <div className="notification-title">{show.title}</div>
+                                                                <div className="notification-text">
+                                                                    S{show.lastEpisode.season_number} E{show.lastEpisode.episode_number} is out!
+                                                                </div>
+                                                                <div className="notification-actions">
+                                                                    <button
+                                                                        className="btn btn--soft btn--xs btn--flex"
+                                                                        onClick={(e) => handleMarkEpisodeWatched(e, show)}
+                                                                    >
+                                                                        Mark Watched
+                                                                    </button>
+                                                                    <button
+                                                                        className="btn btn--ghost btn--xs btn--flex"
+                                                                        onClick={(e) => handleMarkAsRead(e, show)}
+                                                                    >
+                                                                        Dismiss
+                                                                    </button>
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </div>
                                 )}
                             </div>
 
-                            <button onClick={logout} className="btn btn-outline" style={{ padding: '6px 12px' }}>
+                            <button onClick={logout} className="btn btn--outline btn--sm">
                                 <LogOut size={16} /> Logout
                             </button>
                         </>
                     ) : (
-                        <Link to="/login" className="btn" style={{ padding: '6px 16px' }}>
+                        <Link to="/login" className="btn btn--sm">
                             Login
                         </Link>
                     )}

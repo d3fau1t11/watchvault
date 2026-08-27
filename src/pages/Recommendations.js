@@ -153,181 +153,90 @@ function Recommendations() {
 
     if (loading || vaultLoading) {
         return (
-            <div className="page container" style={{ textAlign: "center", padding: "100px 0" }}>
-                <style>{`
-                    @keyframes spin {
-                        to { transform: rotate(360deg); }
-                    }
-                `}</style>
-                <div style={{
-                    width: "40px",
-                    height: "40px",
-                    border: "3px solid rgba(229, 9, 20, 0.1)",
-                    borderTopColor: "var(--accent-primary)",
-                    borderRadius: "50%",
-                    margin: "0 auto 20px",
-                    animation: "spin 0.8s linear infinite"
-                }}></div>
-                <h3 style={{ color: "var(--text-secondary)" }}>Curating your customized recommendations...</h3>
+            <div className="page container">
+                <div className="loading-state">
+                    <div className="spinner" />
+                    <span className="loading-state__label">
+                        Curating your customized recommendations…
+                    </span>
+                </div>
             </div>
         );
     }
 
     const renderMediaGrid = (recs, isPersonalized = false) => (
-        <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))',
-            gap: '24px',
-            marginBottom: '20px'
-        }}>
+        <div className="tile-grid">
             {recs.map((rec) => {
                 const recTitle = rec.title || rec.name;
                 const rating = rec.vote_average ? Math.round(rec.vote_average * 10) / 10 : 'N/A';
-                const poster = rec.poster_path 
+                const poster = rec.poster_path
                     ? (rec.poster_path.startsWith("http://") || rec.poster_path.startsWith("https://") ? rec.poster_path : `https://image.tmdb.org/t/p/w342${rec.poster_path}`)
                     : null;
                 const isMovie = rec.media_type === 'movie';
 
                 return (
-                    <div 
-                        key={rec.id} 
+                    <div
+                        key={rec.id}
+                        className="media-tile"
                         onClick={() => setSelectedMedia(rec)}
-                        style={{
-                            background: 'rgba(255, 255, 255, 0.02)',
-                            border: '1px solid rgba(255, 255, 255, 0.05)',
-                            borderRadius: '12px',
-                            overflow: 'hidden',
-                            cursor: 'pointer',
-                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            position: 'relative',
-                            animation: 'statsFadeIn 0.4s ease'
-                        }}
-                        className="rec-card-full"
                     >
                         {/* Poster Box */}
-                        <div style={{ height: '250px', overflow: 'hidden', position: 'relative' }}>
+                        <div className="media-tile__poster-wrap">
                             {poster ? (
-                                <img src={poster} alt={recTitle} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                <img
+                                    src={poster}
+                                    alt={recTitle}
+                                    className="media-tile__poster"
+                                    loading="lazy"
+                                />
                             ) : (
-                                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1e222b' }}>
-                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>No Poster</span>
-                                </div>
+                                <div className="media-tile__poster-fallback">No Poster</div>
                             )}
-                            
+
                             {/* Rating Badge */}
-                            <div style={{
-                                position: 'absolute',
-                                top: '10px',
-                                right: '10px',
-                                background: 'rgba(0, 0, 0, 0.75)',
-                                color: '#fbbf24',
-                                padding: '3px 8px',
-                                borderRadius: '4px',
-                                fontSize: '0.75rem',
-                                fontWeight: 700,
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '3px',
-                                backdropFilter: 'blur(4px)'
-                            }}>
-                                <Star size={12} fill="#fbbf24" color="#fbbf24" /> {rating}
+                            <div className="media-tile__rating">
+                                <Star size={12} fill="currentColor" /> {rating}
                             </div>
 
                             {/* Media Type Label */}
-                            <div style={{
-                                position: 'absolute',
-                                bottom: '10px',
-                                left: '10px',
-                                background: isMovie ? 'rgba(229, 9, 20, 0.9)' : 'rgba(59, 130, 246, 0.9)',
-                                color: 'white',
-                                padding: '2px 8px',
-                                borderRadius: '3px',
-                                fontSize: '0.7rem',
-                                fontWeight: 600,
-                                textTransform: 'uppercase',
-                                backdropFilter: 'blur(2px)'
-                            }}>
+                            <div className="media-tile__type">
                                 {isMovie ? 'Movie' : 'TV'}
                             </div>
                         </div>
 
                         {/* Info Block */}
-                        <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', flexGrow: 1, justifyContent: 'space-between' }}>
+                        <div className="media-tile__body">
                             <div>
-                                <h4 style={{
-                                    margin: 0,
-                                    fontSize: '0.9rem',
-                                    fontWeight: 600,
-                                    color: 'var(--text-primary)',
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis'
-                                }} title={recTitle}>
+                                <h4 className="media-tile__title" title={recTitle}>
                                     {recTitle}
                                 </h4>
-                                
+
                                 {isPersonalized && rec.recommendedBy && (
-                                    <span style={{
-                                        fontSize: '0.7rem',
-                                        color: 'var(--text-secondary)',
-                                        display: 'block',
-                                        marginTop: '4px',
-                                        whiteSpace: 'nowrap',
-                                        overflow: 'hidden',
-                                        textOverflow: 'ellipsis'
-                                    }}>
+                                    <span className="media-tile__hint">
                                         Inspired by {rec.recommendedBy}
                                     </span>
                                 )}
                             </div>
 
                             {/* Actions Container */}
-                            <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                                <button 
+                            <div className="media-tile__actions">
+                                <button
+                                    className="btn btn--soft btn--xs btn--flex"
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         handleAddRecommendationToVault(rec);
                                     }}
-                                    style={{
-                                        flex: 1,
-                                        background: 'rgba(229, 9, 20, 0.1)',
-                                        border: '1px solid rgba(229, 9, 20, 0.2)',
-                                        color: 'var(--accent-primary)',
-                                        borderRadius: '6px',
-                                        padding: '6px 0',
-                                        fontSize: '0.8rem',
-                                        fontWeight: 600,
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s',
-                                        outline: 'none',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '4px'
-                                    }}
-                                    className="rec-action-add"
                                 >
                                     <Plus size={14} /> Add
                                 </button>
-                                <button 
+                                <button
+                                    className="btn btn--ghost btn--xs btn--icon"
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         setSelectedMedia(rec);
                                     }}
-                                    style={{
-                                        background: 'rgba(255, 255, 255, 0.05)',
-                                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                                        color: 'var(--text-primary)',
-                                        borderRadius: '6px',
-                                        padding: '6px 8px',
-                                        cursor: 'pointer',
-                                        transition: 'all 0.2s',
-                                        outline: 'none'
-                                    }}
-                                    className="rec-action-info"
                                     title="View Details"
+                                    aria-label={`View details for ${recTitle}`}
                                 >
                                     <Info size={14} />
                                 </button>
@@ -341,64 +250,27 @@ function Recommendations() {
 
     return (
         <div className="page container">
-            <style>{`
-                .rec-card-full {
-                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-                }
-                .rec-card-full:hover {
-                    transform: translateY(-5px);
-                    background: rgba(255, 255, 255, 0.04) !important;
-                    border-color: rgba(229, 9, 20, 0.2) !important;
-                    box-shadow: 0 12px 24px -10px rgba(229, 9, 20, 0.25);
-                }
-                .rec-action-add:hover {
-                    background: var(--accent-primary) !important;
-                    border-color: var(--accent-primary) !important;
-                    color: white !important;
-                }
-                .rec-action-info:hover {
-                    background: rgba(255, 255, 255, 0.1) !important;
-                }
-                .show-more-btn {
-                    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
-                }
-                .show-more-btn:hover {
-                    background: rgba(255, 255, 255, 0.09) !important;
-                    border-color: var(--accent-primary) !important;
-                    color: #fff !important;
-                    transform: translateY(-2px);
-                    box-shadow: 0 6px 20px -8px rgba(229, 9, 20, 0.3);
-                }
-            `}</style>
-
-            <div style={{ marginBottom: "30px" }}>
-                <h1 className="page-title" style={{ marginBottom: "8px", display: "flex", alignItems: "center", gap: "10px", background: "linear-gradient(135deg, #ff4b4b 0%, #b81d24 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                    <Sparkles size={28} style={{ color: "var(--accent-primary)" }} /> Discover Hub
-                </h1>
-                <p style={{ color: "var(--text-secondary)", margin: 0 }}>
-                    AI-powered watchlist recommendations tailored strictly to your unique media tastes.
-                </p>
+            <div className="page-header">
+                <div className="page-heading">
+                    <h1 className="page-title">
+                        <Sparkles size={28} /> Discover Hub
+                    </h1>
+                    <p className="page-subtitle">
+                        AI-powered watchlist recommendations tailored strictly to your unique media tastes.
+                    </p>
+                </div>
             </div>
 
             {!isOnline && (
-                <div style={{
-                    background: 'rgba(239, 68, 68, 0.15)',
-                    border: '1px solid rgba(239, 68, 68, 0.25)',
-                    borderRadius: '8px',
-                    padding: '12px',
-                    marginBottom: '24px',
-                    textAlign: 'center',
-                    color: '#f87171',
-                    fontSize: '0.9rem'
-                }}>
+                <div className="banner banner--error">
                     You are currently offline. Recommendations require an active internet connection.
                 </div>
             )}
 
             {/* RECOMMENDATIONS HUD NAVIGATION & FILTER TABS */}
             {personalizedRecs.length > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
-                    <FilterTabs 
+                <div className="toolbar">
+                    <FilterTabs
                         options={[
                             { value: 'all', label: 'All Matches' },
                             { value: 'movie', label: 'Movies' },
@@ -406,9 +278,12 @@ function Recommendations() {
                         ]}
                         activeOption={filterType}
                         onChange={handleFilterChange}
+                        style={{ marginBottom: 0 }}
                     />
-                    
-                    <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+
+                    <div className="toolbar-spacer" />
+
+                    <div className="section-meta">
                         Showing {Math.min(visibleCount, filteredRecommendations.length)} of {filteredRecommendations.length} Curated Matches
                     </div>
                 </div>
@@ -418,27 +293,13 @@ function Recommendations() {
             {visibleRecommendations.length > 0 ? (
                 <div>
                     {renderMediaGrid(visibleRecommendations, true)}
-                    
+
                     {/* SHOW MORE OPTIONS BUTTON */}
                     {filteredRecommendations.length > visibleCount && (
-                        <div style={{ textAlign: 'center', marginTop: '30px', marginBottom: '50px' }}>
-                            <button 
-                                onClick={() => setVisibleCount(prev => prev + 8)}
-                                style={{
-                                    background: 'rgba(255, 255, 255, 0.04)',
-                                    border: '1px solid rgba(255, 255, 255, 0.08)',
-                                    color: 'var(--text-primary)',
-                                    padding: '12px 28px',
-                                    borderRadius: '24px',
-                                    fontSize: '0.85rem',
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                    outline: 'none',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '8px'
-                                }}
+                        <div className="show-more-row">
+                            <button
                                 className="show-more-btn"
+                                onClick={() => setVisibleCount(prev => prev + 8)}
                             >
                                 Show More Options <ChevronDown size={16} />
                             </button>
@@ -448,7 +309,7 @@ function Recommendations() {
             ) : (
                 /* Empty state warning/educational block if watchlist has no items yet */
                 vaultItems.length === 0 && !loading ? (
-                    <EmptyState 
+                    <EmptyState
                         icon="library"
                         title="Your watchlist is empty!"
                         message="Add movies and TV series to your Vault and mark them as Completed or Watching, and we will unlock hyper-personalized matches!"
@@ -457,7 +318,7 @@ function Recommendations() {
                     />
                 ) : (
                     /* If active items filters are empty */
-                    <EmptyState 
+                    <EmptyState
                         icon="search"
                         title="No recommendations found"
                         message="Try adding more titles to your vault or mark some as Completed/Watching to improve recommendations."

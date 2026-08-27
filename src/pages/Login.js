@@ -53,52 +53,55 @@ function Login() {
             <div className="login-card">
                 <h1 className="login-title">Welcome to WatchVault</h1>
                 <p className="login-subtitle">Sign in to manage your watchlist</p>
-                
-                {error && <div style={{ color: "#f87171", background: "rgba(239, 68, 68, 0.1)", padding: "10px", borderRadius: "6px", marginBottom: "20px", fontSize: "0.9rem" }}>{error}</div>}
-                
-                <button 
-                    className="btn google-btn" 
-                    onClick={handleGoogleLogin} 
+
+                {error && <div className="login-error" role="alert">{error}</div>}
+
+                <button
+                    className="btn btn--google btn--block"
+                    onClick={handleGoogleLogin}
                     disabled={loading}
-                    style={{ marginBottom: "20px" }}
                 >
-                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google Logo" style={{ width: "18px", height: "18px" }} />
+                    <img
+                        src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                        alt=""
+                        width="18"
+                        height="18"
+                    />
                     Continue with Google
                 </button>
-                
-                <div style={{ display: "flex", alignItems: "center", margin: "20px 0" }}>
-                    <div style={{ flex: 1, height: "1px", background: "var(--border-color)" }}></div>
-                    <span style={{ padding: "0 10px", color: "var(--text-secondary)", fontSize: "0.9rem" }}>OR</span>
-                    <div style={{ flex: 1, height: "1px", background: "var(--border-color)" }}></div>
-                </div>
 
-                <form onSubmit={handleEmailAuth} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div className="login-divider">OR</div>
+
+                <form onSubmit={handleEmailAuth} className="login-form">
                     <input
                         type="email"
+                        className="input"
                         placeholder="Email Address"
+                        autoComplete="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
-                        style={{ padding: "12px", borderRadius: "8px", border: "var(--glass-border)", background: "rgba(0,0,0,0.2)", color: "white", outline: "none", fontFamily: "inherit" }}
                     />
                     <input
                         type="password"
+                        className="input"
                         placeholder="Password"
+                        autoComplete={isLogin ? "current-password" : "new-password"}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
-                        style={{ padding: "12px", borderRadius: "8px", border: "var(--glass-border)", background: "rgba(0,0,0,0.2)", color: "white", outline: "none", fontFamily: "inherit" }}
                     />
-                    <button type="submit" className="btn" disabled={loading} style={{ marginTop: "8px" }}>
+                    <button type="submit" className="btn btn--block" disabled={loading}>
                         {isLogin ? "Log In" : "Sign Up"}
                     </button>
                 </form>
 
-                <p style={{ marginTop: "24px", color: "var(--text-secondary)", fontSize: "0.9rem" }}>
+                <p className="login-switch">
                     {isLogin ? "Don't have an account? " : "Already have an account? "}
-                    <button 
-                        onClick={() => setIsLogin(!isLogin)} 
-                        style={{ background: "none", border: "none", color: "var(--accent-primary)", cursor: "pointer", fontFamily: "inherit", fontWeight: "600" }}
+                    <button
+                        type="button"
+                        className="link-btn"
+                        onClick={() => setIsLogin(!isLogin)}
                     >
                         {isLogin ? "Sign Up" : "Log In"}
                     </button>

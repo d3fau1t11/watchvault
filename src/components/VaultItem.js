@@ -2,6 +2,18 @@ import { Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { getEpisodeDetails } from "../services/tmdbApi";
 
+const STATUS_MODIFIER = {
+    "Plan to Watch": "pill--plan",
+    "Watching": "pill--watching",
+    "Completed": "pill--done"
+};
+
+const STATUS_SHORT = {
+    "Plan to Watch": "Planned",
+    "Watching": "Watching",
+    "Completed": "Done"
+};
+
 function VaultItem({ item, onUpdateStatus, onUpdateType, onUpdateProgress, onRemove, onClick }) {
     const [episodeName, setEpisodeName] = useState(null);
 
@@ -33,102 +45,58 @@ function VaultItem({ item, onUpdateStatus, onUpdateType, onUpdateProgress, onRem
         : null;
 
     return (
-        <div className="vault-item" onClick={onClick} style={{ cursor: onClick ? 'pointer' : 'default' }}>
+        <div className={`vault-item${onClick ? '' : ' vault-item--static'}`} onClick={onClick}>
             {posterUrl ? (
                 <img src={posterUrl} alt={item.title} className="vault-poster" loading="lazy" />
             ) : (
-                <div className="vault-poster" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1a1d24' }}>
-                    <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>No Image</span>
-                </div>
+                <div className="vault-poster poster-ph">No Image</div>
             )}
             <div className="vault-info">
                 <div className="vault-details">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                        <h3 className="vault-title" style={{ margin: 0 }}>{item.title}</h3>
+                    <div className="vault-title-row">
+                        <h3 className="vault-title">{item.title}</h3>
+                        <span className={`pill pill--status ${STATUS_MODIFIER[item.status] || 'pill--plan'}`}>
+                            {STATUS_SHORT[item.status] || item.status}
+                        </span>
                         {item.rating > 0 && (
-                            <span style={{ 
-                                background: 'rgba(251, 191, 36, 0.15)', 
-                                color: '#fbbf24', 
-                                padding: '2px 6px', 
-                                borderRadius: '4px', 
-                                fontSize: '0.75rem', 
-                                fontWeight: 700,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '2px',
-                                border: '1px solid rgba(251, 191, 36, 0.3)'
-                            }}>
-                                ★ {item.rating}
-                            </span>
+                            <span className="pill pill--star">★ {item.rating}</span>
                         )}
                         {item.category && (
-                            <span style={{ 
-                                background: 'rgba(59, 130, 246, 0.15)', 
-                                color: '#60a5fa', 
-                                padding: '2px 6px', 
-                                borderRadius: '4px', 
-                                fontSize: '0.75rem', 
-                                fontWeight: 600,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                border: '1px solid rgba(59, 130, 246, 0.3)'
-                            }}>
-                                {item.category}
-                            </span>
+                            <span className="pill pill--category">{item.category}</span>
                         )}
                     </div>
                     {episodeName && (
-                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontStyle: 'italic', marginTop: '2px', display: 'block', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span className="vault-episode-name">
                             {`S${item.season || 1} E${item.episode || 0}: ${episodeName}`}
                         </span>
                     )}
 
                     {/* Interactive Watch Progress Tracker */}
                     {(item.type === 'tv' || item.type === 'anime') && (
-                        <div 
-                            onClick={(e) => e.stopPropagation()} 
-                            style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                gap: '8px', 
-                                marginTop: '8px',
-                                background: 'rgba(255, 255, 255, 0.03)',
-                                border: '1px solid rgba(255, 255, 255, 0.05)',
-                                padding: '4px 10px',
-                                borderRadius: '6px',
-                                width: 'fit-content'
-                            }}
-                        >
-                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: '600' }}>S</span>
-                            <input 
-                                type="number" 
-                                value={item.season || 1} 
-                                min="1"
-                                onChange={(e) => {
-                                    const val = Math.max(1, parseInt(e.target.value) || 1);
-                                    onUpdateProgress(item.id, val, item.episode || 0);
-                                }}
-                                style={{
-                                    width: '32px',
-                                    background: 'transparent',
-                                    border: 'none',
-                                    color: 'white',
-                                    fontSize: '0.75rem',
-                                    textAlign: 'center',
-                                    padding: '0',
-                                    fontWeight: '600',
-                                    outline: 'none'
-                                }}
-                                title="Season"
-                            />
-                            
-                            <span style={{ color: 'rgba(255, 255, 255, 0.15)' }}>|</span>
+                        <div className="stepper" onClick={(e) => e.stopPropagation()}>
+                            <div className="stepper__group">
+                                <span className="stepper__label">S</span>
+                                <input
+                                    type="number"
+                                    className="stepper__input"
+                                    value={item.season || 1}
+                                    min="1"
+                                    onChange={(e) => {
+                                        const val = Math.max(1, parseInt(e.target.value) || 1);
+                                        onUpdateProgress(item.id, val, item.episode || 0);
+                                    }}
+                                    title="Season"
+                                />
+                            </div>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: '600' }}>EP</span>
-                                <input 
-                                    type="number" 
-                                    value={item.episode || 0} 
+                            <span className="stepper__divider" />
+
+                            <div className="stepper__group">
+                                <span className="stepper__label">EP</span>
+                                <input
+                                    type="number"
+                                    className="stepper__input"
+                                    value={item.episode || 0}
                                     min="0"
                                     onChange={(e) => {
                                         const val = Math.max(0, parseInt(e.target.value) || 0);
@@ -136,17 +104,6 @@ function VaultItem({ item, onUpdateStatus, onUpdateType, onUpdateProgress, onRem
                                         if (val > 0 && item.status === "Plan to Watch") {
                                             onUpdateStatus(item.id, "Watching");
                                         }
-                                    }}
-                                    style={{
-                                        width: '30px',
-                                        background: 'transparent',
-                                        border: 'none',
-                                        color: 'white',
-                                        fontSize: '0.78rem',
-                                        textAlign: 'center',
-                                        fontWeight: '700',
-                                        outline: 'none',
-                                        padding: '0'
                                     }}
                                     title="Episode Number"
                                 />
@@ -156,40 +113,32 @@ function VaultItem({ item, onUpdateStatus, onUpdateType, onUpdateProgress, onRem
 
                     {/* Display tags inside Vault items list */}
                     {item.tags && item.tags.length > 0 && (
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
+                        <div className="vault-tags">
                             {item.tags.map((tag, idx) => (
-                                <span key={idx} style={{ 
-                                    background: 'rgba(229, 9, 20, 0.05)', 
-                                    border: '1px solid rgba(229, 9, 20, 0.15)', 
-                                    padding: '2px 8px', 
-                                    borderRadius: '12px', 
-                                    fontSize: '0.7rem', 
-                                    color: 'var(--text-secondary)'
-                                }}>
-                                    #{tag}
-                                </span>
+                                <span key={idx} className="pill pill--tag">#{tag}</span>
                             ))}
                         </div>
                     )}
                 </div>
                 <div className="vault-actions">
-                    <select 
+                    <select
                         className="status-select"
                         value={item.type}
                         onClick={(e) => e.stopPropagation()}
                         onChange={(e) => onUpdateType(item.id, e.target.value)}
-                        style={{ borderColor: 'rgba(229, 9, 20, 0.4)' }}
+                        title="Media type"
                     >
                         <option value="movie">Movie</option>
                         <option value="tv">TV Series</option>
                         <option value="anime">Anime</option>
                     </select>
 
-                    <select 
+                    <select
                         className="status-select"
                         value={item.status}
                         onClick={(e) => e.stopPropagation()}
                         onChange={(e) => onUpdateStatus(item.id, e.target.value)}
+                        title="Watch status"
                     >
                         <option value="Plan to Watch">Plan to Watch</option>
                         <option value="Watching">Watching</option>
@@ -197,16 +146,17 @@ function VaultItem({ item, onUpdateStatus, onUpdateType, onUpdateProgress, onRem
                     </select>
 
                     {/* Progress tracking moved to MediaModal */}
-                    
-                    <button 
-                        className="remove-btn" 
+
+                    <button
+                        className="remove-btn"
                         onClick={(e) => {
                             e.stopPropagation();
                             onRemove(item.id);
-                        }} 
+                        }}
                         title="Remove from Vault"
+                        aria-label={`Remove ${item.title} from vault`}
                     >
-                        <Trash2 size={18} />
+                        <Trash2 size={16} />
                     </button>
                 </div>
             </div>

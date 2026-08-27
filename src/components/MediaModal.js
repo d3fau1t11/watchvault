@@ -367,89 +367,78 @@ function MediaModal({ media, onClose }) {
             <div className="modal-content" onClick={e => e.stopPropagation()} ref={modalContentRef}>
                 
                 {/* Navigation Buttons */}
-                <div style={{ position: 'absolute', top: '15px', left: '15px', right: '15px', display: 'flex', justifyContent: 'space-between', zIndex: 20 }}>
+                <div className="modal-nav">
                     {mediaHistory.length > 1 ? (
-                        <button 
-                            className="modal-close" 
-                            onClick={handleBack} 
-                            style={{ position: 'relative', top: '0', right: '0' }}
+                        <button
+                            className="modal-close"
+                            onClick={handleBack}
                             title="Go Back"
+                            aria-label="Go back"
                         >
                             <ArrowLeft size={20} />
                         </button>
                     ) : (
                         <div /> /* Empty div to push close button to the right */
                     )}
-                    <button 
-                        className="modal-close" 
+                    <button
+                        className="modal-close"
                         onClick={onClose}
-                        style={{ position: 'relative', top: '0', right: '0' }}
                         title="Close"
+                        aria-label="Close"
                     >
                         <X size={20} />
                     </button>
                 </div>
-                
+
                 {backdropUrl && (
                     <div className="modal-header-bg" style={{ backgroundImage: `url(${backdropUrl})` }} />
                 )}
 
-                <div className="modal-body" style={{ marginTop: backdropUrl ? '-100px' : '0' }}>
+                <div className={`modal-body${backdropUrl ? ' modal-body--overlap' : ''}`}>
                     {error ? (
-                        <div style={{
-                            padding: '60px 20px',
-                            textAlign: 'center',
-                            color: '#f87171'
-                        }}>
-                            <h3 style={{ fontSize: '1.4rem', fontWeight: 600 }}>Unable to retrieve details</h3>
-                            <p style={{ marginTop: '10px', color: 'var(--text-secondary)', fontSize: '0.95rem' }}>{error}</p>
+                        <div className="modal-error">
+                            <h3 className="modal-error__title">Unable to retrieve details</h3>
+                            <p className="modal-error__text">{error}</p>
                         </div>
                     ) : (
                         <>
-                    
+
                     {/* Top Section: Poster & Core Info */}
                     <div className="modal-top-section">
                         {posterUrl ? (
-                            <img 
-                                src={posterUrl} 
-                                alt={title} 
-                                className="modal-poster" 
-                                style={{
-                                    ...(isPerson ? { height: '300px', objectFit: 'cover' } : {}),
-                                    cursor: 'zoom-in'
-                                }} 
+                            <img
+                                src={posterUrl}
+                                alt={title}
+                                className="modal-poster modal-poster--zoomable"
                                 onClick={() => setShowLightbox(true)}
                                 title="Click to view full image"
                             />
                         ) : (
-                            <div className="modal-poster" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1a1d24' }}>
-                                <span style={{ color: '#94a3b8' }}>No Image</span>
-                            </div>
+                            <div className="modal-poster poster-ph">No Image</div>
                         )}
-                        
+
                         <div className="modal-info">
                             <h2 className="modal-title">{title}</h2>
-                            
+
                             <div className="modal-meta">
                                 {year && <span>{year}</span>}
-                                {year && <span>•</span>}
-                                {displayType && <span style={{ textTransform: 'capitalize' }}>{displayType}</span>}
-                                
+                                {year && <span className="modal-meta__sep">•</span>}
+                                {displayType && <span>{displayType}</span>}
+
                                 {isTV && details?.number_of_seasons && (
                                     <>
-                                        <span>•</span>
+                                        <span className="modal-meta__sep">•</span>
                                         <span>{details.number_of_seasons} Season{details.number_of_seasons > 1 ? 's' : ''} ({details.number_of_episodes} Episodes)</span>
                                     </>
                                 )}
 
                                 {status && status !== 'Released' && (
                                     <>
-                                        <span>•</span>
-                                        <span style={{ 
-                                            color: (status === 'Returning Series' || status === 'In Production') ? '#34d399' : 
-                                                   (status === 'Canceled') ? '#ef4444' : '#94a3b8',
-                                            fontWeight: '500'
-                                        }}>
+                                        <span className="modal-meta__sep">•</span>
+                                        <span className={`modal-meta__status ${
+                                            (status === 'Returning Series' || status === 'In Production') ? 'modal-meta__status--live' :
+                                            (status === 'Canceled') ? 'modal-meta__status--canceled' : 'modal-meta__status--ended'
+                                        }`}>
                                             {status === 'Returning Series' ? 'Currently Airing' : status}
                                         </span>
                                     </>
@@ -457,15 +446,15 @@ function MediaModal({ media, onClose }) {
 
                                 {language && (
                                     <>
-                                        <span>•</span>
+                                        <span className="modal-meta__sep">•</span>
                                         <span>{language}</span>
                                     </>
                                 )}
 
                                 {rating > 0 && (
                                     <>
-                                        <span>•</span>
-                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#fbbf24' }}>
+                                        <span className="modal-meta__sep">•</span>
+                                        <span className="modal-meta__rating">
                                             <Star size={14} fill="currentColor" /> {rating}
                                         </span>
                                     </>
@@ -473,68 +462,37 @@ function MediaModal({ media, onClose }) {
 
                                 {isPerson && details?.birthday && (
                                     <>
-                                        <span>•</span>
+                                        <span className="modal-meta__sep">•</span>
                                         <span>Born: {details.birthday}</span>
                                     </>
                                 )}
                             </div>
 
                             {!isPerson && (
-                                <div style={{ marginBottom: '20px', maxWidth: '400px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                    <button 
-                                        className="btn"
+                                <div className="modal-actions">
+                                    <button
+                                        className={`btn btn--flex${isCurrentInVault ? ' btn--success' : ''}`}
                                         onClick={handleAddCurrentToVault}
-                                        style={{ 
-                                            flex: 1, 
-                                            display: 'flex', 
-                                            justifyContent: 'center', 
-                                            alignItems: 'center', 
-                                            gap: '8px',
-                                            background: isCurrentInVault ? '#22c55e' : 'var(--accent-primary)',
-                                            borderColor: isCurrentInVault ? '#22c55e' : 'var(--accent-primary)',
-                                            color: 'white',
-                                            cursor: isCurrentInVault ? 'default' : 'pointer',
-                                            padding: '12px'
-                                        }}
                                         disabled={isCurrentInVault}
                                     >
                                         {isCurrentInVault ? <><Check size={18} /> In Your Vault</> : <><Plus size={18} /> Add to Vault</>}
                                     </button>
 
                                     {trailer && (
-                                        <button 
-                                            className="btn btn-outline"
+                                        <button
+                                            className="btn btn--outline btn--flex"
                                             onClick={() => setShowTrailerLightbox(true)}
-                                            style={{ 
-                                                flex: 1, 
-                                                display: 'flex', 
-                                                justifyContent: 'center', 
-                                                alignItems: 'center', 
-                                                gap: '8px',
-                                                borderColor: 'var(--accent-primary)',
-                                                color: 'var(--text-primary)',
-                                                padding: '12px'
-                                            }}
                                         >
                                             <PlayCircle size={18} /> Watch Trailer
                                         </button>
                                     )}
-                                    
+
                                     {isCurrentInVault && (
-                                        <button 
-                                            className="btn"
+                                        <button
+                                            className="btn btn--danger btn--icon"
                                             onClick={handleRemoveCurrentFromVault}
-                                            style={{
-                                                background: 'rgba(239, 68, 68, 0.15)',
-                                                border: '1px solid rgba(239, 68, 68, 0.3)',
-                                                color: '#f87171',
-                                                padding: '12px',
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center'
-                                            }}
                                             title="Remove from Vault"
+                                            aria-label="Remove from Vault"
                                         >
                                             <Trash2 size={18} />
                                         </button>
@@ -543,9 +501,9 @@ function MediaModal({ media, onClose }) {
                             )}
 
                             {!isPerson && details?.genres && (
-                                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px' }}>
+                                <div className="modal-genres">
                                     {details.genres.map(g => (
-                                        <span key={g.id} style={{ background: 'rgba(229, 9, 20, 0.2)', padding: '4px 10px', borderRadius: '4px', fontSize: '0.8rem', color: '#f8fafc' }}>
+                                        <span key={g.id} className="pill">
                                             {g.name}
                                         </span>
                                     ))}
@@ -554,55 +512,38 @@ function MediaModal({ media, onClose }) {
 
                             {/* Watch Providers Section */}
                             {!isPerson && watchProviders && watchProviders.results && watchProviders.results.US && (
-                                <div style={{ marginBottom: '20px' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                <div className="providers">
+                                    <div className="providers__label">
                                         <PlayCircle size={16} />
                                         <span>Watch on</span>
                                     </div>
-                                    <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                                    <div className="providers__list">
                                         {watchProviders.results.US.flatrate && watchProviders.results.US.flatrate.map((provider, index) => (
-                                            <div 
+                                            <div
                                                 key={index}
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '8px',
-                                                    background: 'rgba(255, 255, 255, 0.05)',
-                                                    padding: '8px 12px',
-                                                    borderRadius: '8px',
-                                                    border: '1px solid rgba(255, 255, 255, 0.1)'
-                                                }}
+                                                className="provider"
                                                 title={provider.provider_name}
                                             >
-                                                <img 
-                                                    src={`https://image.tmdb.org/t/p/w92${provider.logo_path}`} 
-                                                    alt={provider.provider_name}
-                                                    style={{ width: '32px', height: '32px', borderRadius: '4px' }}
+                                                <img
+                                                    src={`https://image.tmdb.org/t/p/w92${provider.logo_path}`}
+                                                    alt=""
+                                                    loading="lazy"
                                                 />
-                                                <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>{provider.provider_name}</span>
+                                                <span className="provider__name">{provider.provider_name}</span>
                                             </div>
                                         ))}
                                         {watchProviders.results.US.buy && watchProviders.results.US.buy.map((provider, index) => (
-                                            <div 
+                                            <div
                                                 key={`buy-${index}`}
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '8px',
-                                                    background: 'rgba(255, 255, 255, 0.05)',
-                                                    padding: '8px 12px',
-                                                    borderRadius: '8px',
-                                                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                                                    opacity: 0.7
-                                                }}
+                                                className="provider provider--buy"
                                                 title={`Buy on ${provider.provider_name}`}
                                             >
-                                                <img 
-                                                    src={`https://image.tmdb.org/t/p/w92${provider.logo_path}`} 
-                                                    alt={provider.provider_name}
-                                                    style={{ width: '32px', height: '32px', borderRadius: '4px' }}
+                                                <img
+                                                    src={`https://image.tmdb.org/t/p/w92${provider.logo_path}`}
+                                                    alt=""
+                                                    loading="lazy"
                                                 />
-                                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{provider.provider_name} (Buy)</span>
+                                                <span className="provider__name">{provider.provider_name} (Buy)</span>
                                             </div>
                                         ))}
                                     </div>
@@ -610,35 +551,21 @@ function MediaModal({ media, onClose }) {
                             )}
 
                             {details?.next_episode_to_air && (
-                                <div style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    fontSize: '0.82rem',
-                                    color: '#34d399',
-                                    marginTop: '8px',
-                                    marginBottom: '20px',
-                                    fontWeight: '600',
-                                    background: 'rgba(52, 211, 153, 0.1)',
-                                    padding: '6px 12px',
-                                    borderRadius: '6px',
-                                    width: 'fit-content',
-                                    border: '1px solid rgba(52, 211, 153, 0.2)'
-                                }}>
+                                <div className="next-episode">
                                     <Calendar size={14} />
                                     <span>Next Episode: S{details.next_episode_to_air.season_number}E{details.next_episode_to_air.episode_number} - "{details.next_episode_to_air.name}" ({details.next_episode_to_air.air_date})</span>
                                 </div>
                             )}
 
-                            <p className="modal-overview" style={isPerson ? { whiteSpace: 'pre-wrap', maxHeight: '300px', overflowY: 'auto', paddingRight: '10px' } : {}}>
-                                {loading ? "Loading details..." : (
+                            <p className={`modal-overview${isPerson ? ' modal-overview--bio' : ''}`}>
+                                {loading ? "Loading details…" : (
                                     <>
                                         {overview && overview.length > 250 && !isOverviewExpanded ? (
                                             <>
                                                 {overview.substring(0, 250)}...
-                                                <span 
+                                                <span
                                                     onClick={() => setIsOverviewExpanded(true)}
-                                                    style={{ color: 'var(--accent-primary)', fontWeight: '600', cursor: 'pointer', marginLeft: '6px' }}
+                                                    className="modal-overview__toggle"
                                                 >
                                                     more
                                                 </span>
@@ -647,9 +574,9 @@ function MediaModal({ media, onClose }) {
                                             <>
                                                 {overview}
                                                 {overview && overview.length > 250 && isOverviewExpanded && (
-                                                    <span 
+                                                    <span
                                                         onClick={() => setIsOverviewExpanded(false)}
-                                                        style={{ color: 'var(--accent-primary)', fontWeight: '600', cursor: 'pointer', marginLeft: '6px' }}
+                                                        className="modal-overview__toggle"
                                                     >
                                                         less
                                                     </span>
@@ -665,36 +592,29 @@ function MediaModal({ media, onClose }) {
                     {/* Bottom Section: Full Width Details */}
                     <div className="modal-bottom-section">
                         {isCurrentInVault && currentVaultItem && (
-                            <div className="modal-curation-section" style={{
-                                background: 'rgba(255, 255, 255, 0.02)',
-                                border: '1px solid rgba(229, 9, 20, 0.2)',
-                                borderRadius: '12px',
-                                padding: '24px',
-                                marginBottom: '24px',
-                                boxShadow: 'var(--shadow-lg)'
-                            }}>
-                                <h3 style={{ fontSize: '1.25rem', marginBottom: '16px', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    <span style={{ color: 'var(--accent-primary)' }}>★</span> My Curation Vault
+                            <div className="modal-curation-section">
+                                <h3 className="curation-title">
+                                    <Star size={18} fill="currentColor" /> My Curation Vault
                                 </h3>
-                                
+
                                 {/* Rating Row */}
-                                <div style={{ marginBottom: '20px' }}>
-                                    <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 500 }}>
+                                <div className="field">
+                                    <label className="field-label">
                                         My Personal Rating
                                     </label>
-                                    <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                    <div className="rating-row">
                                         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((starValue) => (
-                                            <Star 
-                                                key={starValue} 
-                                                size={22} 
-                                                fill={starValue <= myRating ? "#fbbf24" : "transparent"} 
-                                                color={starValue <= myRating ? "#fbbf24" : "#475569"} 
-                                                style={{ cursor: 'pointer', transition: 'transform 0.1s' }}
+                                            <Star
+                                                key={starValue}
+                                                size={22}
+                                                className="rating-star"
+                                                fill={starValue <= myRating ? "currentColor" : "transparent"}
+                                                color={starValue <= myRating ? "var(--star)" : "var(--border-strong)"}
                                                 onClick={() => setMyRating(starValue)}
                                             />
                                         ))}
                                         {myRating > 0 && (
-                                            <span style={{ marginLeft: '12px', fontSize: '1rem', color: '#fbbf24', fontWeight: 700 }}>
+                                            <span className="rating-value">
                                                 {myRating}/10
                                             </span>
                                         )}
@@ -702,28 +622,19 @@ function MediaModal({ media, onClose }) {
                                 </div>
 
                                 {/* Category Row */}
-                                <div style={{ marginBottom: '20px' }}>
-                                    <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 500 }}>
+                                <div className="field">
+                                    <label className="field-label">
                                         Category Classification
                                     </label>
-                                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                                        <select 
-                                            value={myCategory} 
+                                    <div className="field-row">
+                                        <select
+                                            className="select"
+                                            value={myCategory}
                                             onChange={(e) => {
                                                 setMyCategory(e.target.value);
                                                 if (e.target.value !== "Custom") {
                                                     setCustomCategoryInput("");
                                                 }
-                                            }}
-                                            style={{
-                                                background: 'rgba(0,0,0,0.3)',
-                                                border: '1px solid rgba(255,255,255,0.1)',
-                                                color: 'white',
-                                                padding: '8px 12px',
-                                                borderRadius: '6px',
-                                                fontSize: '0.85rem',
-                                                outline: 'none',
-                                                minWidth: '150px'
                                             }}
                                         >
                                             {STANDARD_CATEGORIES.map(cat => (
@@ -731,179 +642,115 @@ function MediaModal({ media, onClose }) {
                                             ))}
                                             <option value="Custom">Custom...</option>
                                         </select>
-                                        
+
                                         {myCategory === "Custom" && (
-                                            <input 
+                                            <input
                                                 type="text"
+                                                className="input"
                                                 placeholder="Enter custom category"
                                                 value={customCategoryInput}
                                                 onChange={(e) => setCustomCategoryInput(e.target.value)}
-                                                style={{
-                                                    background: 'rgba(0,0,0,0.3)',
-                                                    border: '1px solid rgba(255,255,255,0.1)',
-                                                    color: 'white',
-                                                    padding: '8px 12px',
-                                                    borderRadius: '6px',
-                                                    fontSize: '0.85rem',
-                                                    outline: 'none',
-                                                    width: '200px'
-                                                }}
                                             />
                                         )}
                                     </div>
                                 </div>
 
                                 {/* Tags Row */}
-                                <div style={{ marginBottom: '20px' }}>
-                                    <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 500 }}>
+                                <div className="field">
+                                    <label className="field-label">
                                         Tags / Custom Collections
                                     </label>
-                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                                    <div className="tag-list">
                                         {myTags.map((tag, idx) => (
-                                            <span key={idx} style={{ 
-                                                background: 'rgba(229, 9, 20, 0.1)', 
-                                                border: '1px solid rgba(229, 9, 20, 0.2)', 
-                                                padding: '4px 10px', 
-                                                borderRadius: '20px', 
-                                                fontSize: '0.8rem', 
-                                                color: 'var(--text-primary)',
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '6px'
-                                            }}>
+                                            <span key={idx} className="pill pill--tag pill--removable">
                                                 #{tag}
-                                                <button 
+                                                <button
+                                                    type="button"
+                                                    className="pill__remove"
                                                     onClick={() => handleRemoveTag(tag)}
-                                                    style={{ 
-                                                        background: 'transparent', 
-                                                        border: 'none', 
-                                                        color: '#f87171', 
-                                                        cursor: 'pointer', 
-                                                        padding: 0, 
-                                                        fontSize: '0.85rem',
-                                                        display: 'flex',
-                                                        alignItems: 'center'
-                                                    }}
+                                                    aria-label={`Remove tag ${tag}`}
                                                 >
-                                                    ✕
+                                                    <X size={12} />
                                                 </button>
                                             </span>
                                         ))}
                                         {myTags.length === 0 && (
-                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                                            <span className="tag-empty">
                                                 No tags added yet. Add custom tags below.
                                             </span>
                                         )}
                                     </div>
-                                    
-                                    <form onSubmit={handleAddTag} style={{ display: 'flex', gap: '8px', maxWidth: '300px' }}>
-                                        <input 
-                                            type="text" 
-                                            placeholder="Add custom tag (e.g. favorites)" 
+
+                                    <form onSubmit={handleAddTag} className="tag-form">
+                                        <input
+                                            type="text"
+                                            className="input"
+                                            placeholder="Add custom tag (e.g. favorites)"
                                             value={newTagInput}
                                             onChange={(e) => setNewTagInput(e.target.value)}
-                                            style={{
-                                                flex: 1,
-                                                background: 'rgba(0,0,0,0.3)',
-                                                border: '1px solid rgba(255,255,255,0.1)',
-                                                color: 'white',
-                                                padding: '8px 12px',
-                                                borderRadius: '6px',
-                                                fontSize: '0.85rem',
-                                                outline: 'none'
-                                            }}
                                         />
-                                        <button 
-                                            type="submit" 
-                                            className="btn" 
-                                            style={{ padding: '6px 12px', fontSize: '0.85rem' }}
-                                        >
+                                        <button type="submit" className="btn btn--sm">
                                             Add
                                         </button>
                                     </form>
                                 </div>
 
                                 {/* Private Notes & Review Grid */}
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '20px' }}>
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 500 }}>
+                                <div className="curation-grid">
+                                    <div className="field">
+                                        <label className="field-label">
                                             Private Notes (e.g. Watch notes)
                                         </label>
-                                        <textarea 
+                                        <textarea
+                                            className="textarea"
                                             value={myNotes}
                                             onChange={(e) => setMyNotes(e.target.value)}
                                             placeholder="Enter private notes..."
                                             rows={3}
-                                            style={{
-                                                width: '100%',
-                                                background: 'rgba(0,0,0,0.3)',
-                                                border: '1px solid rgba(255,255,255,0.1)',
-                                                color: 'white',
-                                                padding: '10px',
-                                                borderRadius: '8px',
-                                                fontSize: '0.9rem',
-                                                outline: 'none',
-                                                resize: 'vertical',
-                                                fontFamily: 'inherit'
-                                            }}
                                         />
                                     </div>
-                                    
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 500 }}>
+
+                                    <div className="field">
+                                        <label className="field-label">
                                             My Written Review
                                         </label>
-                                        <textarea 
+                                        <textarea
+                                            className="textarea"
                                             value={myReview}
                                             onChange={(e) => setMyReview(e.target.value)}
                                             placeholder="Write your review here..."
                                             rows={3}
-                                            style={{
-                                                width: '100%',
-                                                background: 'rgba(0,0,0,0.3)',
-                                                border: '1px solid rgba(255,255,255,0.1)',
-                                                color: 'white',
-                                                padding: '10px',
-                                                borderRadius: '8px',
-                                                fontSize: '0.9rem',
-                                                outline: 'none',
-                                                resize: 'vertical',
-                                                fontFamily: 'inherit'
-                                            }}
                                         />
                                     </div>
                                 </div>
 
-                                <button 
-                                    className="btn" 
-                                    onClick={handleSaveCuration}
-                                    style={{ fontSize: '0.9rem', padding: '10px 16px' }}
-                                >
+                                <button className="btn" onClick={handleSaveCuration}>
                                     Save Curation Details
                                 </button>
                             </div>
                         )}
 
                         {isTV && details?.seasons && details.seasons.length > 0 && (
-                            <div className="modal-episodes-section" style={{ marginBottom: '24px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                                    <h3 style={{ fontSize: '1.2rem', margin: 0 }}>Episodes</h3>
-                                    <select 
-                                        value={selectedSeason || ""} 
+                            <div className="modal-episodes-section">
+                                <div className="episodes-head">
+                                    <h3 className="modal-section-title">Episodes</h3>
+                                    <select
+                                        className="select"
+                                        value={selectedSeason || ""}
                                         onChange={(e) => setSelectedSeason(Number(e.target.value))}
-                                        style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', padding: '6px 12px', borderRadius: '8px', outline: 'none' }}
+                                        aria-label="Select season"
                                     >
                                         {details.seasons.filter(s => s.season_number > 0).map(s => (
-                                            <option key={s.season_number} value={s.season_number} style={{ background: '#1a1d24' }}>
+                                            <option key={s.season_number} value={s.season_number}>
                                                 {s.name || `Season ${s.season_number}`}
                                             </option>
                                         ))}
                                     </select>
                                 </div>
-                                
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '400px', overflowY: 'auto', paddingRight: '8px', scrollbarWidth: 'thin', scrollbarColor: 'var(--accent-primary) transparent' }}>
+
+                                <div className="episode-list">
                                     {seasonEpisodes.length === 0 ? (
-                                        <div style={{ color: 'var(--text-secondary)' }}>Loading episodes...</div>
+                                        <div className="state-note">Loading episodes…</div>
                                     ) : (
                                         seasonEpisodes.map(ep => {
                                             const currentVaultItem = getVaultItem(currentMedia.tmdbId || currentMedia.id);

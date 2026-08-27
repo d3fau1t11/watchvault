@@ -11,7 +11,7 @@ function MediaCard({ item, onAdd, onClick, isAdded }) {
     const year = (item.release_date || item.first_air_date || "").substring(0, 4);
 
     return (
-        <div className="media-card" onClick={onClick} style={{ cursor: onClick ? 'pointer' : 'default' }}>
+        <div className={`media-card${onClick ? '' : ' media-card--static'}`} onClick={onClick}>
             <div className="media-poster-container">
                 {posterUrl ? (
                     <img src={posterUrl} alt={title} className="media-poster" loading="lazy" />
@@ -35,13 +35,12 @@ function MediaCard({ item, onAdd, onClick, isAdded }) {
                 <h3 className="media-title">{title}</h3>
                 
                 {onAdd && (
-                    <button 
-                        className="btn add-btn" 
+                    <button
+                        className={`btn add-btn${isAdded ? ' add-btn--added' : ''}`}
                         onClick={(e) => {
                             e.stopPropagation();
                             if (!isAdded) onAdd(item);
                         }}
-                        style={isAdded ? { background: '#22c55e', borderColor: '#22c55e', color: 'white', cursor: 'default' } : {}}
                     >
                         {isAdded ? <><Check size={16} /> In Vault</> : <><Plus size={16} /> Add to Vault</>}
                     </button>

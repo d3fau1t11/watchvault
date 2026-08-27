@@ -4,6 +4,20 @@ import { useNavigate } from "react-router-dom";
 import EmptyState from "../components/EmptyState";
 import { BarChart3, TrendingUp, Clock, Library } from "lucide-react";
 
+/* Donut + legend read from the same array, so slice N and legend row N can
+   never drift apart. Ordered to stay distinguishable at 10px swatch size. */
+const CHART_COLORS = [
+    "#E50914", // red
+    "#3B82F6", // blue
+    "#22C55E", // green
+    "#F5A524", // amber
+    "#8B5CF6", // purple
+    "#EC4899", // pink
+    "#06B6D4", // cyan
+    "#F97316", // orange
+    "#6B6B78"  // grey
+];
+
 function Stats() {
     const { vaultItems, loading: vaultLoading } = useVault();
     const navigate = useNavigate();
@@ -108,64 +122,30 @@ function Stats() {
 
     if (vaultLoading) {
         return (
-            <div className="page container" style={{ textAlign: "center", padding: "100px 0" }}>
-                <style>{`
-                    @keyframes spin {
-                        to { transform: rotate(360deg); }
-                    }
-                `}</style>
-                <div style={{
-                    width: "40px",
-                    height: "40px",
-                    border: "3px solid rgba(229, 9, 20, 0.1)",
-                    borderTopColor: "var(--accent-primary)",
-                    borderRadius: "50%",
-                    margin: "0 auto 20px",
-                    animation: "spin 0.8s linear infinite"
-                }}></div>
-                <h3 style={{ color: "var(--text-secondary)" }}>Analyzing your Vault metrics...</h3>
+            <div className="page container">
+                <div className="loading-state">
+                    <div className="spinner" />
+                    <span className="loading-state__label">Analyzing your Vault metrics…</span>
+                </div>
             </div>
         );
     }
 
     return (
         <div className="page container">
-            <style>{`
-                @keyframes statsFadeIn {
-                    from { opacity: 0; transform: translateY(-12px); }
-                    to { opacity: 1; transform: translateY(0); }
-                }
-                .stats-grid-card {
-                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-                }
-                .stats-grid-card:hover {
-                    transform: translateY(-5px);
-                    background: rgba(255, 255, 255, 0.04) !important;
-                    border-color: rgba(229, 9, 20, 0.2) !important;
-                    box-shadow: 0 12px 24px -10px rgba(229, 9, 20, 0.25);
-                }
-                .stats-distribution-pill {
-                    font-size: 0.72rem;
-                    font-weight: 600;
-                    padding: 3px 8px;
-                    border-radius: 4px;
-                    background: rgba(255, 255, 255, 0.04);
-                    border: 1px solid rgba(255, 255, 255, 0.08);
-                    color: var(--text-secondary);
-                }
-            `}</style>
-
-            <div style={{ marginBottom: "30px" }}>
-                <h1 className="page-title" style={{ marginBottom: "8px", display: "flex", alignItems: "center", gap: "10px", background: "linear-gradient(135deg, #ff4b4b 0%, #b81d24 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                    <BarChart3 size={28} style={{ color: "var(--accent-primary)" }} /> Vault Statistics
-                </h1>
-                <p style={{ color: "var(--text-secondary)", margin: 0 }}>
-                    Deep-dive tracking analytics, format distribution metrics, and watchlist watchtime reports.
-                </p>
+            <div className="page-header">
+                <div className="page-heading">
+                    <h1 className="page-title">
+                        <BarChart3 size={28} /> Vault Statistics
+                    </h1>
+                    <p className="page-subtitle">
+                        Deep-dive tracking analytics, format distribution metrics, and watchlist watchtime reports.
+                    </p>
+                </div>
             </div>
 
             {vaultItems.length === 0 ? (
-                <EmptyState 
+                <EmptyState
                     icon="library"
                     title="Your stats profile is empty!"
                     message="Add titles (movies, series, or anime) to your Vault and mark them as Completed or Watching, and we will automatically compile comprehensive progress reports!"
@@ -173,34 +153,19 @@ function Stats() {
                     onAction={() => navigate("/")}
                 />
             ) : (
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                    gap: '24px',
-                    animation: 'statsFadeIn 0.5s ease'
-                }}>
+                <div className="stats-grid">
                     {/* CARD 1: Total Library size */}
-                    <div className="stats-grid-card" style={{
-                        background: 'var(--bg-glass)',
-                        backdropFilter: 'blur(20px)',
-                        border: 'var(--glass-border)',
-                        borderRadius: '16px',
-                        padding: '24px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.15)'
-                    }}>
+                    <div className="stat-card">
                         <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '16px' }}>
-                                <span style={{ textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Total Library</span>
-                                <Library size={18} color="var(--accent-primary)" />
+                            <div className="stat-head">
+                                <span className="stat-label">Total Library</span>
+                                <Library size={18} />
                             </div>
-                            <h4 style={{ margin: 0, fontSize: '2rem', color: 'var(--text-primary)', fontWeight: 700 }}>
-                                {stats.total} <span style={{ fontSize: '1rem', fontWeight: 400, color: 'var(--text-secondary)' }}>Titles</span>
+                            <h4 className="stat-value">
+                                {stats.total} <span className="stat-unit">Titles</span>
                             </h4>
                         </div>
-                        <div style={{ display: 'flex', gap: '8px', marginTop: '24px', flexWrap: 'wrap' }}>
+                        <div className="stat-pills">
                             <span className="stats-distribution-pill">🎬 {stats.moviesCount} Movies</span>
                             <span className="stats-distribution-pill">📺 {stats.tvCount} Shows</span>
                             <span className="stats-distribution-pill">🛡️ {stats.animeCount} Anime</span>
@@ -208,130 +173,84 @@ function Stats() {
                     </div>
 
                     {/* CARD 2: Total Hours Watched */}
-                    <div className="stats-grid-card" style={{
-                        background: 'var(--bg-glass)',
-                        backdropFilter: 'blur(20px)',
-                        border: 'var(--glass-border)',
-                        borderRadius: '16px',
-                        padding: '24px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.15)'
-                    }}>
+                    <div className="stat-card">
                         <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '16px' }}>
-                                <span style={{ textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Estimated Watch Time</span>
-                                <Clock size={18} color="#10b981" />
+                            <div className="stat-head">
+                                <span className="stat-label">Estimated Watch Time</span>
+                                <Clock size={18} />
                             </div>
-                            <h4 style={{ margin: 0, fontSize: '2rem', color: 'var(--text-primary)', fontWeight: 700 }}>
-                                {stats.hoursWatched} <span style={{ fontSize: '1rem', fontWeight: 400, color: 'var(--text-secondary)' }}>Hours</span>
+                            <h4 className="stat-value">
+                                {stats.hoursWatched} <span className="stat-unit">Hours</span>
                             </h4>
                         </div>
-                        <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '24px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ color: '#10b981', fontWeight: 600 }}>★ Live computation</span> based on custom episode tracking progress.
+                        <div className="stat-note">
+                            <span className="stat-em stat-em--done">Live computation</span> based on custom episode tracking progress.
                         </div>
                     </div>
 
                     {/* CARD 3: Watchlist Completion Percentage */}
-                    <div className="stats-grid-card" style={{
-                        background: 'var(--bg-glass)',
-                        backdropFilter: 'blur(20px)',
-                        border: 'var(--glass-border)',
-                        borderRadius: '16px',
-                        padding: '24px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '20px',
-                        boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.15)'
-                    }}>
+                    <div className="stat-card stat-card--row">
                         {/* Circular Progress Gauge */}
-                        <div style={{ position: 'relative', width: '80px', height: '80px', flexShrink: 0 }}>
-                            <svg style={{ transform: 'rotate(-90deg)', width: '100%', height: '100%' }}>
-                                <circle cx="40" cy="40" r="34" stroke="rgba(255, 255, 255, 0.05)" strokeWidth="6" fill="transparent" />
-                                <circle cx="40" cy="40" r="34" stroke="var(--accent-primary)" strokeWidth="6" fill="transparent" 
+                        <div className="gauge">
+                            <svg>
+                                <circle cx="40" cy="40" r="34" stroke="var(--surface-3)" strokeWidth="6" fill="transparent" />
+                                <circle cx="40" cy="40" r="34" stroke="var(--accent)" strokeWidth="6" fill="transparent"
                                     strokeDasharray={2 * Math.PI * 34}
                                     strokeDashoffset={2 * Math.PI * 34 * (1 - stats.completionRate / 100)}
                                     strokeLinecap="round"
-                                    style={{ transition: 'stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1)' }}
                                 />
                             </svg>
-                            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '0.95rem', fontWeight: 700, color: '#fff' }}>
+                            <div className="gauge__value">
                                 {stats.completionRate}%
                             </div>
                         </div>
 
                         <div>
-                            <div style={{ display: 'flex', alignItems: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '6px' }}>
-                                <span style={{ textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>Library Completion</span>
+                            <div className="stat-head">
+                                <span className="stat-label">Library Completion</span>
                             </div>
-                            <h4 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--text-primary)', fontWeight: 700 }}>
+                            <h4 className="stat-value stat-value--sm">
                                 {stats.completed} Completed
                             </h4>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                                <span style={{ color: '#60a5fa', fontWeight: 600 }}>{stats.watching}</span> Active • <span style={{ color: '#fbbf24', fontWeight: 600 }}>{stats.planToWatch}</span> Backlog
+                            <div className="stat-note">
+                                <span className="stat-em stat-em--watching">{stats.watching}</span> Active • <span className="stat-em stat-em--plan">{stats.planToWatch}</span> Backlog
                             </div>
                         </div>
                     </div>
 
                     {/* CARD 4: Currently Tracking Focus */}
-                    <div className="stats-grid-card" style={{
-                        background: 'var(--bg-glass)',
-                        backdropFilter: 'blur(20px)',
-                        border: 'var(--glass-border)',
-                        borderRadius: '16px',
-                        padding: '24px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.15)',
-                        gridColumn: '1 / -1' // Span full row width for lists
-                    }}>
+                    <div className="stat-card stat-card--wide">
                         <div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '16px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '10px' }}>
-                                <span style={{ textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                    <TrendingUp size={16} color="#10b981" /> Active Watchlist Trackers
+                            <div className="stat-head stat-head--rule">
+                                <span className="stat-label">
+                                    <TrendingUp size={16} /> Active Watchlist Trackers
                                 </span>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                <span className="stat-note">
                                     Current episode progression levels
                                 </span>
                             </div>
 
                             {stats.watchingList.length > 0 ? (
-                                <div style={{
-                                    display: 'grid',
-                                    gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-                                    gap: '16px',
-                                    marginTop: '12px'
-                                }}>
+                                <div className="tracker-grid">
                                     {stats.watchingList.map((item, idx) => (
-                                        <div key={idx} style={{
-                                            background: 'rgba(255, 255, 255, 0.02)',
-                                            border: '1px solid rgba(255, 255, 255, 0.04)',
-                                            borderRadius: '8px',
-                                            padding: '12px 16px',
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center',
-                                            transition: 'all 0.2s'
-                                        }}>
-                                            <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px' }} title={item.title}>
+                                        <div key={idx} className="tracker-item">
+                                            <span className="tracker-name" title={item.title}>
                                                 {item.title}
                                             </span>
-                                            <span style={{ color: 'var(--accent-primary)', fontSize: '0.75rem', fontWeight: 700, background: 'rgba(229, 9, 20, 0.08)', padding: '4px 8px', borderRadius: '4px', border: '1px solid rgba(229, 9, 20, 0.15)' }}>
+                                            <span className="tracker-progress">
                                                 {item.type === 'movie' ? 'Movie' : `S${item.season || 1} E${item.episode || 0}`}
                                             </span>
                                         </div>
                                     ))}
                                 </div>
                             ) : (
-                                <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-secondary)', fontSize: '0.85rem', fontStyle: 'italic' }}>
+                                <div className="state-note">
                                     No watchlist titles are currently set to "Watching" status. Toggle progress to update stats.
                                 </div>
                             )}
                         </div>
                         {stats.watching > 6 && (
-                            <div style={{ marginTop: '16px', fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'right', fontWeight: 500 }}>
+                            <div className="stat-footnote">
                                 + {stats.watching - 6} more active titles are being tracked in your Vault.
                             </div>
                         )}
@@ -339,45 +258,24 @@ function Stats() {
 
                     {/* CARD 5: Genre Distribution Donut Chart */}
                     {stats.genreData && stats.genreData.length > 0 && (
-                        <div className="stats-grid-card" style={{
-                            background: 'var(--bg-glass)',
-                            backdropFilter: 'blur(20px)',
-                            border: 'var(--glass-border)',
-                            borderRadius: '16px',
-                            padding: '24px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.15)',
-                            gridColumn: '1 / -1'
-                        }}>
+                        <div className="stat-card stat-card--wide">
                             <div>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '10px' }}>
-                                    <span style={{ textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 600 }}>
+                                <div className="stat-head stat-head--rule">
+                                    <span className="stat-label">
                                         Genre Distribution
                                     </span>
-                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                    <span className="stat-note">
                                         Breakdown of genres in your collection
                                     </span>
                                 </div>
 
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '40px', alignItems: 'center', justifyContent: 'center', padding: '10px 0' }}>
-                                    
+                                <div className="donut-layout">
+
                                     {/* SVG Donut */}
-                                    <div style={{ position: 'relative', width: '180px', height: '180px', flexShrink: 0 }}>
-                                        <svg viewBox="0 0 120 120" style={{ transform: 'rotate(-90deg)', width: '100%', height: '100%' }}>
+                                    <div className="donut">
+                                        <svg viewBox="0 0 120 120">
                                             {(() => {
                                                 const totalGenresCount = stats.genreData.reduce((acc, curr) => acc + curr.count, 0);
-                                                const colors = [
-                                                    "#e50914", // red
-                                                    "#3b82f6", // blue
-                                                    "#10b981", // green
-                                                    "#f59e0b", // amber
-                                                    "#8b5cf6", // purple
-                                                    "#ec4899", // pink
-                                                    "#06b6d4", // cyan
-                                                    "#f97316", // orange
-                                                    "#64748b"  // slate gray
-                                                ];
 
                                                 let accumulatedPercentage = 0;
                                                 const radius = 45;
@@ -389,69 +287,51 @@ function Stats() {
                                                     const strokeLength = (percentage / 100) * circumference;
                                                     const strokeOffset = circumference - (accumulatedPercentage / 100) * circumference;
                                                     accumulatedPercentage += percentage;
-                                                    const color = colors[idx % colors.length];
+                                                    const color = CHART_COLORS[idx % CHART_COLORS.length];
 
                                                     return (
-                                                        <circle 
+                                                        <circle
                                                             key={idx}
-                                                            cx="60" 
-                                                            cy="60" 
-                                                            r={radius} 
-                                                            stroke={color} 
-                                                            strokeWidth={strokeWidth} 
-                                                            fill="transparent" 
+                                                            cx="60"
+                                                            cy="60"
+                                                            r={radius}
+                                                            stroke={color}
+                                                            strokeWidth={strokeWidth}
+                                                            fill="transparent"
                                                             strokeDasharray={`${strokeLength} ${circumference}`}
                                                             strokeDashoffset={strokeOffset}
                                                             strokeLinecap="round"
-                                                            style={{ transition: 'stroke-dashoffset 0.8s ease' }}
                                                         />
                                                     );
                                                 });
                                             })()}
                                         </svg>
-                                        <div style={{ 
-                                            position: 'absolute', 
-                                            top: '50%', 
-                                            left: '50%', 
-                                            transform: 'translate(-50%, -50%)', 
-                                            textAlign: 'center' 
-                                        }}>
-                                            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'white' }}>
+                                        <div className="donut__center">
+                                            <div className="donut__total">
                                                 {stats.genreData.reduce((acc, curr) => acc + curr.count, 0)}
                                             </div>
-                                            <div style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                            <div className="donut__caption">
                                                 Genre tags
                                             </div>
                                         </div>
                                     </div>
 
                                     {/* Chart Legend */}
-                                    <div style={{ flex: 1, minWidth: '220px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '16px' }}>
+                                    <div className="legend">
                                         {(() => {
                                             const totalGenresCount = stats.genreData.reduce((acc, curr) => acc + curr.count, 0);
-                                            const colors = [
-                                                "#e50914", // red
-                                                "#3b82f6", // blue
-                                                "#10b981", // green
-                                                "#f59e0b", // amber
-                                                "#8b5cf6", // purple
-                                                "#ec4899", // pink
-                                                "#06b6d4", // cyan
-                                                "#f97316", // orange
-                                                "#64748b"  // slate gray
-                                            ];
 
                                             return stats.genreData.map((data, idx) => {
                                                 const percentage = Math.round((data.count / totalGenresCount) * 100);
-                                                const color = colors[idx % colors.length];
+                                                const color = CHART_COLORS[idx % CHART_COLORS.length];
                                                 return (
-                                                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: color, flexShrink: 0 }} />
-                                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: 600 }}>
+                                                    <div key={idx} className="legend-item">
+                                                        <div className="legend-swatch" style={{ background: color }} />
+                                                        <div className="legend-text">
+                                                            <span className="legend-name" title={data.genre}>
                                                                 {data.genre}
                                                             </span>
-                                                            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                                                            <span className="legend-meta">
                                                                 {data.count} title{data.count > 1 ? 's' : ''} ({percentage}%)
                                                             </span>
                                                         </div>

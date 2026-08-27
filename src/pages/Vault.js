@@ -183,20 +183,16 @@ function Vault() {
 
     const handleRemove = (id) => {
         toast.custom((t) => (
-            <div style={{ 
-                background: 'var(--bg-glass)', 
-                backdropFilter: 'blur(16px)',
-                border: '1px solid rgba(248, 113, 113, 0.5)', 
-                padding: '20px', 
-                borderRadius: '16px', 
-                color: 'var(--text-primary)',
-                boxShadow: '0 10px 25px -5px rgba(248, 113, 113, 0.15)'
-            }}>
-                <h3 style={{ marginBottom: '12px', fontSize: '1.1rem', color: '#f87171' }}>Remove Item?</h3>
-                <p style={{ marginBottom: '20px', color: 'var(--text-secondary)' }}>Are you sure you want to remove this item from your vault?</p>
-                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                    <button className="btn btn-outline" onClick={() => toast.dismiss(t.id)}>Cancel</button>
-                    <button className="btn" style={{ background: '#ef4444' }} onClick={() => executeRemoveItem(t.id, id)}>Remove</button>
+            <div className="confirm-toast">
+                <h3 className="confirm-toast__title">
+                    <Trash2 size={20} /> Remove Item?
+                </h3>
+                <p className="confirm-toast__text">
+                    Are you sure you want to remove this item from your vault?
+                </p>
+                <div className="confirm-toast__actions">
+                    <button className="btn btn--outline btn--sm" onClick={() => toast.dismiss(t.id)}>Cancel</button>
+                    <button className="btn btn--danger-solid btn--sm" onClick={() => executeRemoveItem(t.id, id)}>Remove</button>
                 </div>
             </div>
         ), { duration: Infinity, id: `remove-${id}` });
@@ -217,33 +213,22 @@ function Vault() {
         if (vaultItems.length === 0) return;
         
         toast.custom((t) => (
-            <div style={{ 
-                background: 'var(--bg-glass)', 
-                backdropFilter: 'blur(16px)',
-                border: '1px solid rgba(248, 113, 113, 0.5)', 
-                padding: '24px', 
-                borderRadius: '16px', 
-                color: 'var(--text-primary)',
-                boxShadow: '0 25px 50px -12px rgba(248, 113, 113, 0.25)',
-                maxWidth: '400px'
-            }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', color: '#f87171' }}>
-                    <Trash2 size={24} />
-                    <h3 style={{ margin: 0, fontSize: '1.2rem' }}>Clear Entire Vault?</h3>
-                </div>
-                <p style={{ marginBottom: '24px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            <div className="confirm-toast">
+                <h3 className="confirm-toast__title">
+                    <Trash2 size={20} /> Clear Entire Vault?
+                </h3>
+                <p className="confirm-toast__text">
                     Are you absolutely sure you want to delete your ENTIRE vault? This action cannot be undone and you will lose all your saved items.
                 </p>
-                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                    <button 
-                        className="btn btn-outline" 
+                <div className="confirm-toast__actions">
+                    <button
+                        className="btn btn--outline btn--sm"
                         onClick={() => toast.dismiss(t.id)}
                     >
                         Cancel
                     </button>
-                    <button 
-                        className="btn" 
-                        style={{ background: '#ef4444', color: 'white' }} 
+                    <button
+                        className="btn btn--danger-solid btn--sm"
                         onClick={() => executeClearVault(t.id)}
                     >
                         Yes, Delete All
@@ -388,36 +373,47 @@ function Vault() {
     }, [filteredAndSortedItems]);
 
     if (vaultLoading) {
-        return <div className="page container" style={{ textAlign: "center" }}>Loading your vault...</div>;
+        return (
+            <div className="page container">
+                <div className="loading-state">
+                    <div className="spinner" />
+                    <span className="loading-state__label">Loading your vault…</span>
+                </div>
+            </div>
+        );
     }
 
 
 
     return (
         <div className="page container">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
-                <h1 className="page-title" style={{ marginBottom: 0, background: 'linear-gradient(135deg, #ff4b4b 0%, #b81d24 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                    The Vault
-                </h1>
-                
-                <div style={{ display: 'flex', gap: '12px' }}>
-                    <input 
-                        type="file" 
-                        accept=".json" 
-                        ref={fileInputRef} 
-                        style={{ display: 'none' }} 
+            <div className="page-header">
+                <div className="page-heading">
+                    <h1 className="page-title">The Vault</h1>
+                    <p className="page-subtitle">
+                        {vaultItems.length === 1
+                            ? "1 title saved"
+                            : `${vaultItems.length} titles saved`}
+                    </p>
+                </div>
+
+                <div className="page-header-actions">
+                    <input
+                        type="file"
+                        accept=".json"
+                        ref={fileInputRef}
+                        style={{ display: 'none' }}
                         onChange={handleFileUpload}
                     />
-                    <button className="btn btn-outline" onClick={() => fileInputRef.current.click()} style={{ fontSize: '0.9rem', padding: '8px 12px' }}>
+                    <button className="btn btn--outline btn--sm" onClick={() => fileInputRef.current.click()}>
                         <Upload size={16} /> Import
                     </button>
-                    <button className="btn btn-outline" onClick={handleExport} style={{ fontSize: '0.9rem', padding: '8px 12px' }}>
+                    <button className="btn btn--outline btn--sm" onClick={handleExport}>
                         <Download size={16} /> Export
                     </button>
-                    <button 
-                        className="btn btn-outline" 
-                        onClick={handleClearVault} 
-                        style={{ fontSize: '0.9rem', padding: '8px 12px', color: '#f87171', borderColor: 'rgba(248, 113, 113, 0.3)' }}
+                    <button
+                        className="btn btn--danger btn--sm"
+                        onClick={handleClearVault}
                         disabled={vaultItems.length === 0}
                     >
                         <Trash2 size={16} /> Clear Vault
@@ -426,40 +422,21 @@ function Vault() {
             </div>
 
             {!isOnline && (
-                <div style={{
-                    background: 'rgba(59, 130, 246, 0.15)',
-                    border: '1px solid rgba(59, 130, 246, 0.25)',
-                    borderRadius: '8px',
-                    padding: '12px',
-                    marginBottom: '24px',
-                    textAlign: 'center',
-                    color: '#60a5fa',
-                    fontSize: '0.9rem'
-                }}>
+                <div className="banner banner--info banner--center">
                     Offline Mode: Browsing local vault cache. Changes will sync automatically once connected.
                 </div>
             )}
 
             {/* Vault Search Bar */}
-            <div style={{ position: 'relative', marginBottom: '24px', maxWidth: '400px' }}>
-                <input 
-                    type="text" 
-                    placeholder="Search in your vault..." 
+            <div className="search-inline">
+                <input
+                    type="text"
+                    className="input"
+                    placeholder="Search in your vault..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    style={{
-                        width: '100%',
-                        padding: '12px 16px',
-                        paddingLeft: '40px',
-                        borderRadius: '8px',
-                        border: 'var(--glass-border)',
-                        background: 'var(--bg-secondary)',
-                        color: 'var(--text-primary)',
-                        outline: 'none',
-                        fontFamily: 'inherit'
-                    }}
                 />
-                <Search size={18} color="var(--text-secondary)" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
+                <Search size={18} className="search-inline__icon" />
             </div>
 
             {/* Modern Tab Navigation */}
@@ -476,82 +453,56 @@ function Vault() {
 
             {/* Airing This Week Section */}
             {airingThisWeek.length > 0 && (
-                <div style={{ marginBottom: '30px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-                        <Calendar size={20} style={{ color: 'var(--accent-primary)' }} />
-                        <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 600 }}>Airing This Week</h3>
+                <div className="section">
+                    <div className="section-header">
+                        <h2 className="section-title">
+                            <Calendar size={20} /> Airing This Week
+                        </h2>
                     </div>
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                        gap: '16px'
-                    }}>
-                        {airingThisWeek.map((item) => (
-                            <div 
-                                key={item.id}
-                                onClick={() => setSelectedMedia(item)}
-                                style={{
-                                    background: 'var(--bg-secondary)',
-                                    border: '1px solid rgba(229, 9, 20, 0.2)',
-                                    borderRadius: '12px',
-                                    padding: '16px',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s ease',
-                                    boxShadow: 'var(--shadow-sm)'
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
-                                    e.currentTarget.style.transform = 'translateY(-2px)';
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.background = 'var(--bg-secondary)';
-                                    e.currentTarget.style.transform = 'translateY(0)';
-                                }}
-                            >
-                                <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-                                    <img 
-                                        src={item.poster ? (item.poster.startsWith("http://") || item.poster.startsWith("https://") ? item.poster : `https://image.tmdb.org/t/p/w200${item.poster}`) : 'https://via.placeholder.com/80x120?text=No+Poster'}
-                                        alt={item.title}
-                                        style={{
-                                            width: '60px',
-                                            height: '90px',
-                                            objectFit: 'cover',
-                                            borderRadius: '6px',
-                                            flexShrink: 0
-                                        }}
-                                    />
-                                    <div style={{ flex: 1 }}>
-                                        <h4 style={{ margin: '0 0 6px 0', fontSize: '0.95rem', fontWeight: 600, lineHeight: 1.3 }}>
-                                            {item.title}
-                                        </h4>
-                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                                            {item.type === 'anime' ? 'Anime' : 'TV Series'}
-                                        </div>
-                                        <div style={{ 
-                                            fontSize: '0.8rem', 
-                                            color: '#fbbf24',
-                                            fontWeight: 500 
-                                        }}>
-                                            S{item.nextEpisode.season_number} E{item.nextEpisode.episode_number}
+                    <div className="airing-grid">
+                        {airingThisWeek.map((item) => {
+                            const airingPoster = item.poster
+                                ? (item.poster.startsWith("http://") || item.poster.startsWith("https://") ? item.poster : `https://image.tmdb.org/t/p/w200${item.poster}`)
+                                : null;
+
+                            return (
+                                <div
+                                    key={item.id}
+                                    className="airing-card"
+                                    onClick={() => setSelectedMedia(item)}
+                                >
+                                    <div className="airing-card__head">
+                                        {airingPoster ? (
+                                            <img
+                                                src={airingPoster}
+                                                alt={item.title}
+                                                className="airing-card__poster"
+                                                loading="lazy"
+                                            />
+                                        ) : (
+                                            <div className="airing-card__poster poster-ph">No Poster</div>
+                                        )}
+                                        <div className="airing-card__info">
+                                            <h4 className="airing-card__title">{item.title}</h4>
+                                            <div className="airing-card__type">
+                                                {item.type === 'anime' ? 'Anime' : 'TV Series'}
+                                            </div>
+                                            <div className="airing-card__ep">
+                                                S{item.nextEpisode.season_number} E{item.nextEpisode.episode_number}
+                                            </div>
                                         </div>
                                     </div>
+                                    <div className="airing-card__date">
+                                        <Calendar size={14} />
+                                        {new Date(item.nextEpisode.air_date).toLocaleDateString('en-US', {
+                                            weekday: 'short',
+                                            month: 'short',
+                                            day: 'numeric'
+                                        })}
+                                    </div>
                                 </div>
-                                <div style={{ 
-                                    fontSize: '0.85rem', 
-                                    color: 'var(--text-secondary)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px'
-                                }}>
-                                    <Calendar size={14} />
-                                    {new Date(item.nextEpisode.air_date).toLocaleDateString('en-US', { 
-                                        weekday: 'short', 
-                                        month: 'short', 
-                                        day: 'numeric' 
-                                    })}
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             )}
@@ -566,12 +517,12 @@ function Vault() {
                 />
             ) : (
                 <>
-                    <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '24px', background: 'var(--bg-secondary)', padding: '16px', borderRadius: '12px', border: 'var(--glass-border)', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
-                            <Filter size={18} /> Filters & Sorting:
+                    <div className="toolbar">
+                        <div className="toolbar-label">
+                            <Filter size={18} /> Filters &amp; Sorting
                         </div>
 
-                        <select className="status-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                        <select className="select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} aria-label="Filter by status">
                             <option value="all">All Statuses</option>
                             <option value="Plan to Watch">Plan to Watch</option>
                             <option value="Watching">Watching</option>
@@ -579,7 +530,7 @@ function Vault() {
                         </select>
 
                         {allTags.length > 0 && (
-                            <select className="status-select" value={filterTag} onChange={(e) => setFilterTag(e.target.value)}>
+                            <select className="select" value={filterTag} onChange={(e) => setFilterTag(e.target.value)} aria-label="Filter by tag">
                                 <option value="all">All Tags</option>
                                 {allTags.map(tag => (
                                     <option key={tag} value={tag}>#{tag}</option>
@@ -588,7 +539,7 @@ function Vault() {
                         )}
 
                         {allCategories.length > 0 && (
-                            <select className="status-select" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
+                            <select className="select" value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} aria-label="Filter by category">
                                 <option value="all">All Categories</option>
                                 {allCategories.map(cat => (
                                     <option key={cat} value={cat}>{cat}</option>
@@ -596,46 +547,34 @@ function Vault() {
                             </select>
                         )}
 
-                        <div style={{ display: 'flex', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', overflow: 'hidden', marginLeft: 'auto' }}>
-                            <button 
-                                onClick={() => setViewMode("grid")}
-                                title="Grid View"
-                                style={{
-                                    background: viewMode === "grid" ? 'var(--accent-primary)' : 'transparent',
-                                    border: 'none',
-                                    color: 'white',
-                                    padding: '6px 12px',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    transition: 'background 0.2s'
-                                }}
-                            >
-                                <Grid size={16} />
-                            </button>
-                            <button 
-                                onClick={() => setViewMode("grouped")}
-                                title="Group by Category"
-                                style={{
-                                    background: viewMode === "grouped" ? 'var(--accent-primary)' : 'transparent',
-                                    border: 'none',
-                                    color: 'white',
-                                    padding: '6px 12px',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    transition: 'background 0.2s'
-                                }}
-                            >
-                                <Layers size={16} />
-                            </button>
-                        </div>
-
-                        <select className="status-select" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                        <select className="select" value={sortBy} onChange={(e) => setSortBy(e.target.value)} aria-label="Sort order">
                             <option value="date_desc">Newest First</option>
                             <option value="date_asc">Oldest First</option>
                             <option value="title_asc">Alphabetical (A-Z)</option>
                         </select>
+
+                        <div className="toolbar-spacer" />
+
+                        <div className="segmented" role="group" aria-label="View mode">
+                            <button
+                                type="button"
+                                className={`segmented-btn${viewMode === "grid" ? ' segmented-btn--active' : ''}`}
+                                aria-pressed={viewMode === "grid"}
+                                onClick={() => setViewMode("grid")}
+                                title="Grid View"
+                            >
+                                <Grid size={16} /> List
+                            </button>
+                            <button
+                                type="button"
+                                className={`segmented-btn${viewMode === "grouped" ? ' segmented-btn--active' : ''}`}
+                                aria-pressed={viewMode === "grouped"}
+                                onClick={() => setViewMode("grouped")}
+                                title="Group by Category"
+                            >
+                                <Layers size={16} /> Grouped
+                            </button>
+                        </div>
                     </div>
 
                     {viewMode === "grid" ? (
@@ -653,7 +592,7 @@ function Vault() {
                                     />
                                 ))
                             ) : (
-                                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                                <div className="state-note">
                                     {searchQuery ? `No items found matching "${searchQuery}".` : "No items match your current filters."}
                                 </div>
                             )}
@@ -687,7 +626,7 @@ function Vault() {
                                     );
                                 })
                             ) : (
-                                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)' }}>
+                                <div className="state-note">
                                     {searchQuery ? `No items found matching "${searchQuery}".` : "No items match your current filters."}
                                 </div>
                             )}

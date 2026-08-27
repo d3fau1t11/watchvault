@@ -19,42 +19,24 @@ function App() {
             <VaultProvider>
                 <Router>
                     <div className="App">
-                        <Toaster 
-                            position="bottom-right" 
+                        <Toaster
+                            position="bottom-right"
                             toastOptions={{
                                 style: {
-                                    background: '#1a0000',
-                                    color: '#f8fafc',
-                                    border: '1px solid rgba(229, 9, 20, 0.3)'
+                                    background: '#14141A',
+                                    color: '#F5F5F7',
+                                    border: '1px solid #33333F',
+                                    borderRadius: '10px',
+                                    fontSize: '0.9375rem'
                                 }
-                            }} 
+                            }}
                         />
                         <Navbar />
                         <div className="main-content-layout">
                             <Suspense fallback={
-                                <div style={{
-                                    display: 'flex',
-                                    justifyContent: 'center',
-                                    alignItems: 'center',
-                                    height: '80vh',
-                                    flexDirection: 'column',
-                                    color: 'var(--text-secondary)'
-                                }}>
-                                    <style>{`
-                                        @keyframes appSpin {
-                                            to { transform: rotate(360deg); }
-                                        }
-                                    `}</style>
-                                    <div style={{
-                                        width: "40px",
-                                        height: "40px",
-                                        border: "3px solid rgba(229, 9, 20, 0.1)",
-                                        borderTopColor: "var(--accent-primary)",
-                                        borderRadius: "50%",
-                                        marginBottom: "20px",
-                                        animation: "appSpin 0.8s linear infinite"
-                                    }}></div>
-                                    <h3>Loading Page...</h3>
+                                <div className="loading-state">
+                                    <div className="spinner" />
+                                    <span className="loading-state__label">Loading page…</span>
                                 </div>
                             }>
                                 <Routes>
