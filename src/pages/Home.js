@@ -295,7 +295,7 @@ function Home() {
                     setContentType(value);
                     loadTrending();
                 }}
-                style={{ justifyContent: 'center', marginBottom: '30px' }}
+                className="chip-group--center"
             />
 
             {!isOnline && (

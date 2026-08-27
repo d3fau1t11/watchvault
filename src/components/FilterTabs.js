@@ -1,6 +1,6 @@
-const FilterTabs = ({ options, activeOption, onChange, style = {} }) => {
+const FilterTabs = ({ options, activeOption, onChange, className = "" }) => {
   return (
-    <div className="chip-group" style={{ marginBottom: '20px', ...style }}>
+    <div className={`chip-group${className ? ` ${className}` : ""}`}>
       {options.map((option) => (
         <button
           key={option.value}

@@ -278,7 +278,7 @@ function Recommendations() {
                         ]}
                         activeOption={filterType}
                         onChange={handleFilterChange}
-                        style={{ marginBottom: 0 }}
+                        className="chip-group--flush"
                     />
 
                     <div className="toolbar-spacer" />

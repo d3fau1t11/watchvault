@@ -62,6 +62,16 @@ function MediaModal({ media, onClose }) {
     const currentVaultItem = getVaultItem(currentMedia.tmdbId || currentMedia.id);
     const lastVaultIdRef = useRef(null);
 
+    /* The modal scrolls its own content, so let the page behind it stay put
+       instead of scrolling underneath the backdrop. */
+    useEffect(() => {
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        return () => {
+            document.body.style.overflow = previousOverflow;
+        };
+    }, []);
+
     useEffect(() => {
         const vaultId = currentVaultItem ? currentVaultItem.id : null;
         if (lastVaultIdRef.current !== vaultId) {
@@ -607,9 +617,7 @@ function MediaModal({ media, onClose }) {
                                             <Star
                                                 key={starValue}
                                                 size={22}
-                                                className="rating-star"
-                                                fill={starValue <= myRating ? "currentColor" : "transparent"}
-                                                color={starValue <= myRating ? "var(--star)" : "var(--border-strong)"}
+                                                className={`rating-star${starValue <= myRating ? ' rating-star--on' : ''}`}
                                                 onClick={() => setMyRating(starValue)}
                                             />
                                         ))}
@@ -802,33 +810,30 @@ function MediaModal({ media, onClose }) {
                                             };
 
                                             return (
-                                                <div 
-                                                    key={ep.id} 
+                                                <div
+                                                    key={ep.id}
                                                     onClick={handleEpisodeClick}
-                                                    className="episode-card-row"
-                                                    style={{ 
-                                                        display: 'flex', gap: '16px', 
-                                                        background: isWatched ? 'rgba(34, 197, 94, 0.1)' : 'rgba(255,255,255,0.03)', 
-                                                        padding: '12px', borderRadius: '8px', 
-                                                        border: isWatched ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(255,255,255,0.05)',
-                                                        cursor: (isCurrentInVault && currentVaultItem) ? 'pointer' : 'default',
-                                                        transition: 'all 0.2s'
-                                                    }}
+                                                    className={`episode-card-row${isWatched ? ' episode-card-row--watched' : ''}${(isCurrentInVault && currentVaultItem) ? ' episode-card-row--clickable' : ''}`}
                                                 >
                                                     {ep.still_path ? (
-                                                        <img src={ep.still_path.startsWith("http://") || ep.still_path.startsWith("https://") ? ep.still_path : `https://image.tmdb.org/t/p/w227_and_h127_bestv2${ep.still_path}`} alt={ep.name} style={{ width: '130px', height: '73px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0, opacity: isWatched ? 0.6 : 1 }} loading="lazy" />
+                                                        <img
+                                                            src={ep.still_path.startsWith("http://") || ep.still_path.startsWith("https://") ? ep.still_path : `https://image.tmdb.org/t/p/w227_and_h127_bestv2${ep.still_path}`}
+                                                            alt={ep.name}
+                                                            className="episode-still"
+                                                            loading="lazy"
+                                                        />
                                                     ) : (
-                                                        <div style={{ width: '130px', height: '73px', background: '#1a1d24', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: '0.8rem', flexShrink: 0, opacity: isWatched ? 0.6 : 1 }}>No Image</div>
+                                                        <div className="episode-still poster-ph">No Image</div>
                                                     )}
-                                                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, opacity: isWatched ? 0.7 : 1 }}>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                                                            <strong style={{ fontSize: '1rem', color: isWatched ? '#4ade80' : 'white' }}>
+                                                    <div className="episode-body">
+                                                        <div className="episode-head">
+                                                            <strong className="episode-name">
                                                                 {ep.episode_number}. {ep.name}
-                                                                {isWatched && <Check size={16} style={{display: 'inline-block', marginLeft: '6px', verticalAlign: 'text-bottom'}} />}
+                                                                {isWatched && <Check size={16} />}
                                                             </strong>
-                                                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{ep.runtime ? `${ep.runtime}m` : ''}</span>
+                                                            <span className="episode-runtime">{ep.runtime ? `${ep.runtime}m` : ''}</span>
                                                         </div>
-                                                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                                        <p className="episode-overview">
                                                             {ep.overview || "No overview available."}
                                                         </p>
                                                     </div>
@@ -842,7 +847,7 @@ function MediaModal({ media, onClose }) {
 
                         {cast.length > 0 && (
                             <div className="modal-cast-section">
-                                <h3 style={{ fontSize: '1.2rem', marginBottom: '16px' }}>Top Cast</h3>
+                                <h3 className="modal-section-title">Top Cast</h3>
                                 <div className="modal-cast-list">
                                     {cast.map(actor => (
                                         <div 
@@ -870,7 +875,7 @@ function MediaModal({ media, onClose }) {
 
                         {trailer && (
                             <div className="modal-trailer-section">
-                                <h3 style={{ fontSize: '1.2rem', marginBottom: '16px' }}>Trailer</h3>
+                                <h3 className="modal-section-title">Trailer</h3>
                                 <div className="trailer-container">
                                     <YouTube 
                                         videoId={trailer.key} 
@@ -882,7 +887,7 @@ function MediaModal({ media, onClose }) {
 
                         {recommendations.length > 0 && (
                             <div className="modal-recommendations-section">
-                                <h3 style={{ fontSize: '1.2rem', marginBottom: '16px' }}>More Like This</h3>
+                                <h3 className="modal-section-title">More Like This</h3>
                                 <div className="modal-recommendation-list">
                                     {recommendations.map(rec => (
                                         <div 
@@ -903,7 +908,7 @@ function MediaModal({ media, onClose }) {
                                                 )}
                                                 <div className="recommendation-overlay">
                                                     {isInVault(rec.id) ? (
-                                                        <div style={{ background: '#22c55e', color: 'white', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        <div className="recommendation-in-vault">
                                                             <Check size={20} />
                                                         </div>
                                                     ) : (
@@ -926,7 +931,7 @@ function MediaModal({ media, onClose }) {
                         
                         {actorCredits.length > 0 && (
                             <div className="modal-recommendations-section">
-                                <h3 style={{ fontSize: '1.2rem', marginBottom: '16px' }}>Known For</h3>
+                                <h3 className="modal-section-title">Known For</h3>
                                 <div className="modal-recommendation-list">
                                     {actorCredits.map(rec => (
                                         <div 
@@ -947,7 +952,7 @@ function MediaModal({ media, onClose }) {
                                                 )}
                                                 <div className="recommendation-overlay">
                                                     {isInVault(rec.id) ? (
-                                                        <div style={{ background: '#22c55e', color: 'white', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                        <div className="recommendation-in-vault">
                                                             <Check size={20} />
                                                         </div>
                                                     ) : (
@@ -973,134 +978,61 @@ function MediaModal({ media, onClose }) {
             </div>
 
             {showLightbox && (
-                <div 
-                    className="lightbox-overlay" 
+                <div
+                    className="lightbox-overlay"
                     onClick={(e) => {
                         e.stopPropagation();
                         setShowLightbox(false);
                     }}
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        width: '100vw',
-                        height: '100vh',
-                        background: 'rgba(0, 0, 0, 0.95)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 99999,
-                        cursor: 'zoom-out'
-                    }}
                 >
-                    <img 
-                        src={posterUrl ? posterUrl.replace("/w500", "/original") : ""} 
-                        alt={title} 
-                        style={{
-                            maxWidth: '90%',
-                            maxHeight: '90%',
-                            objectFit: 'contain',
-                            borderRadius: '8px',
-                            boxShadow: '0 20px 50px rgba(0,0,0,0.9)',
-                            animation: 'zoomIn 0.2s ease'
-                        }}
+                    <img
+                        src={posterUrl ? posterUrl.replace("/w500", "/original") : ""}
+                        alt={title}
+                        className="lightbox-image"
                     />
-                    <button 
+                    <button
+                        className="lightbox-close"
                         onClick={(e) => {
                             e.stopPropagation();
                             setShowLightbox(false);
                         }}
-                        style={{
-                            position: 'absolute',
-                            top: '20px',
-                            right: '20px',
-                            background: 'rgba(255,255,255,0.1)',
-                            border: 'none',
-                            color: 'white',
-                            padding: '12px 16px',
-                            borderRadius: '50%',
-                            fontSize: '1.2rem',
-                            cursor: 'pointer'
-                        }}
-                    >✕</button>
+                        aria-label="Close image"
+                    >
+                        <X size={20} />
+                    </button>
                 </div>
             )}
 
             {showTrailerLightbox && trailer && (
-                <div 
-                    className="lightbox-overlay" 
+                <div
+                    className="lightbox-overlay lightbox-overlay--trailer"
                     onClick={(e) => {
                         e.stopPropagation();
                         setShowTrailerLightbox(false);
                     }}
-                    style={{
-                        position: 'fixed',
-                        top: 0,
-                        left: 0,
-                        width: '100vw',
-                        height: '100vh',
-                        background: 'rgba(0, 0, 0, 0.95)',
-                        backdropFilter: 'blur(20px)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: 999999,
-                        cursor: 'default'
-                    }}
                 >
-                    <style>{`
-                        @keyframes lightboxZoom {
-                            from { transform: scale(0.95); opacity: 0; }
-                            to { transform: scale(1); opacity: 1; }
-                        }
-                    `}</style>
-                    <div 
-                        style={{
-                            width: '90%',
-                            maxWidth: '960px',
-                            aspectRatio: '16/9',
-                            position: 'relative',
-                            boxShadow: '0 25px 50px -12px rgba(229, 9, 20, 0.25)',
-                            borderRadius: '12px',
-                            overflow: 'hidden',
-                            border: '1px solid rgba(229, 9, 20, 0.2)',
-                            animation: 'lightboxZoom 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
-                        }}
+                    <div
+                        className="lightbox-player"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <YouTube 
-                            videoId={trailer.key} 
-                            opts={{ 
-                                width: '100%', 
-                                height: '100%', 
-                                playerVars: { 
+                        <YouTube
+                            videoId={trailer.key}
+                            opts={{
+                                width: '100%',
+                                height: '100%',
+                                playerVars: {
                                     autoplay: 1,
                                     origin: window.location.origin
-                                } 
-                            }} 
-                            style={{ width: '100%', height: '100%' }}
+                                }
+                            }}
                         />
-                        <button 
+                        <button
+                            className="lightbox-close"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 setShowTrailerLightbox(false);
                             }}
-                            style={{
-                                position: 'absolute',
-                                top: '15px',
-                                right: '15px',
-                                background: 'rgba(0,0,0,0.6)',
-                                border: '1px solid rgba(255,255,255,0.2)',
-                                color: 'white',
-                                padding: '10px',
-                                borderRadius: '50%',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                transition: 'all 0.2s',
-                                zIndex: 10
-                            }}
+                            aria-label="Close trailer"
                         >
                             <X size={20} />
                         </button>

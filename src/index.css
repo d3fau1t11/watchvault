@@ -1027,10 +1027,16 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-2);
+  margin-bottom: var(--sp-5);
 }
 
 .chip-group--center {
   justify-content: center;
+}
+
+/* For chip groups sitting inside a .toolbar, which owns its own spacing. */
+.chip-group--flush {
+  margin-bottom: 0;
 }
 
 .chip {
@@ -3418,9 +3424,19 @@ h1, h2, h3, h4, h5, h6 {
   flex-wrap: wrap;
 }
 
+/* Both states are driven from CSS rather than JSX props: a CSS fill/stroke
+   property beats lucide's presentation attributes, and it avoids relying on
+   currentColor, which would resolve against the inherited text colour. */
 .rating-star {
   cursor: pointer;
-  transition: transform var(--dur-fast) var(--ease);
+  fill: transparent;
+  stroke: var(--border-strong);
+  transition: transform var(--dur-fast) var(--ease), fill var(--dur-fast) var(--ease), stroke var(--dur-fast) var(--ease);
+}
+
+.rating-star--on {
+  fill: var(--star);
+  stroke: var(--star);
 }
 
 .rating-star:hover {
@@ -3752,6 +3768,13 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 /* --- Trailer --- */
+
+/* Cast and recommendation rails. The list inside scrolls horizontally, so the
+   wrapper must not itself become a flex item that can be squeezed. */
+.modal-cast-section,
+.modal-recommendations-section {
+  min-width: 0;
+}
 
 .modal-trailer-section {
   width: 100%;
