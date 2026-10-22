@@ -7,6 +7,13 @@ const COLLECTION_NAME = "vault";
 /* Firestore caps a write batch at 500 operations. */
 const BATCH_LIMIT = 500;
 
+/* Extracts a 4-digit year from a TMDB release_date / first_air_date string. */
+const extractYear = (dateString) => {
+    if (!dateString || typeof dateString !== "string") return null;
+    const year = dateString.substring(0, 4);
+    return /^\d{4}$/.test(year) ? parseInt(year, 10) : null;
+};
+
 export const addToVault = async (userId, mediaItem, status = "Plan to Watch") => {
     try {
         let mediaType = mediaItem.type || mediaItem.media_type;
@@ -36,6 +43,8 @@ export const addToVault = async (userId, mediaItem, status = "Plan to Watch") =>
            "Sci-Fi & Fantasy" that the select could never round-trip. */
         const defaultCategory = mediaItem.category || deriveCategory({ type: mediaType, genres: genresList });
 
+        const releaseDate = mediaItem.release_date || mediaItem.first_air_date || null;
+
         const docRef = await addDoc(collection(db, COLLECTION_NAME), {
             userId,
             tmdbId: mediaItem.id,
@@ -45,11 +54,42 @@ export const addToVault = async (userId, mediaItem, status = "Plan to Watch") =>
             status,
             genres: genresList,
             category: defaultCategory,
+            year: extractYear(releaseDate),
             createdAt: serverTimestamp(),
         });
         return { success: true, id: docRef.id };
     } catch (error) {
         console.error("Error adding to vault:", error);
+        return { success: false, error: error.message };
+    }
+};
+
+/* Deletes every vault document belonging to a user. Chunked into batches of
+   500 because that is the Firestore write-batch limit. */
+export const deleteUserVault = async (userId) => {
+    try {
+        const q = query(collection(db, COLLECTION_NAME), where("userId", "==", userId));
+        const querySnapshot = await getDocs(q);
+
+        const docRefs = [];
+        querySnapshot.forEach((docSnap) => {
+            docRefs.push(docSnap.ref);
+        });
+
+        let deleted = 0;
+        for (let i = 0; i < docRefs.length; i += BATCH_LIMIT) {
+            const chunk = docRefs.slice(i, i + BATCH_LIMIT);
+            const batch = writeBatch(db);
+            chunk.forEach((ref) => {
+                batch.delete(ref);
+            });
+            await batch.commit();
+            deleted += chunk.length;
+        }
+
+        return { success: true, deleted };
+    } catch (error) {
+        console.error("Error deleting user vault:", error);
         return { success: false, error: error.message };
     }
 };

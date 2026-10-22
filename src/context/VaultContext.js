@@ -2,6 +2,9 @@ import { createContext, useContext, useState, useEffect, useCallback } from "rea
 import { useAuth } from "./AuthContext";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { db } from "../services/firebase";
+import { shouldAutoComplete } from "../utils/autoComplete";
+import { getTVDetailsWithAiring } from "../services/tmdbApi";
+import { updateVaultItemStatus } from "../services/firestoreService";
 
 const VaultContext = createContext(null);
 
@@ -67,6 +70,35 @@ export const VaultProvider = ({ children }) => {
 
     return () => unsubscribe();
   }, [currentUser]);
+
+  // Retroactive auto-completion: whenever the vault loads, check any Watching
+  // TV/Anime items the user already has saved. If they're caught up to the end
+  // (all seasons/episodes watched, regardless of TMDB "Ended" status), mark
+  // them Completed so existing lists stay consistent.
+  useEffect(() => {
+    if (!currentUser || vaultItems.length === 0) return;
+
+    const checkExistingItems = async () => {
+      const watchingShows = vaultItems.filter(
+        item =>
+          (item.type === "tv" || item.type === "anime") &&
+          item.status === "Watching"
+      );
+
+      for (const item of watchingShows) {
+        try {
+          const details = await getTVDetailsWithAiring(item.tmdbId);
+          if (shouldAutoComplete(item, details)) {
+            await updateVaultItemStatus(item.id, "Completed");
+          }
+        } catch (err) {
+          console.error(`Auto-complete check failed for "${item.title}":`, err);
+        }
+      }
+    };
+
+    checkExistingItems();
+  }, [currentUser, vaultItems]);
 
   // Helper functions that work with the current vault state
   const isInVault = useCallback((tmdbId) => {

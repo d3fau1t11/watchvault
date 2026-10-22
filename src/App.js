@@ -12,6 +12,7 @@ const Recommendations = lazy(() => import("./pages/Recommendations"));
 const Stats = lazy(() => import("./pages/Stats"));
 const Shuffle = lazy(() => import("./pages/Shuffle"));
 const Categories = lazy(() => import("./pages/Categories"));
+const Profile = lazy(() => import("./pages/Profile"));
 
 function App() {
     return (
@@ -47,6 +48,7 @@ function App() {
                                     <Route path="/stats" element={<Stats />} />
                                     <Route path="/shuffle" element={<Shuffle />} />
                                     <Route path="/categories" element={<Categories />} />
+                                    <Route path="/profile" element={<Profile />} />
                                 </Routes>
                             </Suspense>
                         </div>
