@@ -9,6 +9,7 @@ import toast from "react-hot-toast";
 import { X, Star, Plus, Check, ArrowLeft, Calendar, Trash2, PlayCircle } from "lucide-react";
 import YouTube from "react-youtube";
 import { STANDARD_CATEGORIES } from "../utils/categories";
+import { shouldAutoComplete } from "../utils/autoComplete";
 
 function MediaModal({ media, onClose }) {
     const [mediaHistory, setMediaHistory] = useState([media]);
@@ -768,17 +769,11 @@ function MediaModal({ media, onClose }) {
                                                 if (response.success) {
                                                     toast.success(`Progress saved: S${selectedSeason} E${ep.episode_number}`, { id: loadingToast });
                                                     
-                                                    // Auto-complete if show is ended/canceled and all episodes are watched
-                                                    const isEndedOrCanceled = details?.status === 'Ended' || details?.status === 'Canceled';
-                                                    const nonZeroSeasons = details?.seasons?.filter(s => s.season_number > 0) || [];
-                                                    const lastSeasonObj = nonZeroSeasons[nonZeroSeasons.length - 1];
-                                                    
-                                                    if (isEndedOrCanceled && lastSeasonObj && currentVaultItem) {
-                                                        if (selectedSeason === lastSeasonObj.season_number && ep.episode_number >= lastSeasonObj.episode_count) {
-                                                            if (currentVaultItem.status !== 'Completed') {
-                                                                await updateVaultItemStatus(currentVaultItem.id, 'Completed');
-                                                                toast.success(`${details.name || details.title} automatically marked as Completed!`);
-                                                            }
+                                                    // Auto-complete if all seasons/episodes are watched (regardless of TMDB Ended status)
+                                                    if (shouldAutoComplete(currentVaultItem, details)) {
+                                                        if (currentVaultItem.status !== 'Completed') {
+                                                            await updateVaultItemStatus(currentVaultItem.id, 'Completed');
+                                                            toast.success(`${details.name || details.title} automatically marked as Completed!`);
                                                         }
                                                     }
                                                 } else {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from "react";
+import { useState, useEffect, useCallback, lazy, Suspense, useMemo } from "react";
 import { searchMedia, getTrending, getMediaDetails } from "../services/tmdbApi";
 import { searchAnime, getTrendingAnime, convertAnilistToTmdbFormat } from "../services/anilistApi";
 import { addToVault, updateVaultItemProgress, updateVaultItemStatus } from "../services/firestoreService";
@@ -9,7 +9,8 @@ import toast from "react-hot-toast";
 import SearchBar from "../components/SearchBar";
 import MediaCard from "../components/MediaCard";
 import FilterTabs from "../components/FilterTabs";
-import { ArrowLeft, Play } from "lucide-react";
+import { Play } from "lucide-react";
+import { shouldAutoComplete } from "../utils/autoComplete";
 
 const MediaModal = lazy(() => import("../components/MediaModal"));
 
@@ -25,6 +26,7 @@ function Home() {
     const [isOnline, setIsOnline] = useState(navigator.onLine);
     const { isInVault, getWatchingItems } = useVault();
     const [contentType, setContentType] = useState("all"); // all, movies, tv, anime
+    const [yearFilter, setYearFilter] = useState("all");
 
     useEffect(() => {
         const handleOnline = () => setIsOnline(true);
@@ -143,7 +145,7 @@ function Home() {
 
         const title = item.title || item.name;
         const loadingToast = toast.loading(`Adding ${title}...`);
-        
+
         const response = await addToVault(currentUser.uid, item);
         if (response.success) {
             toast.success(`${title} added to your vault!`, { id: loadingToast });
@@ -167,22 +169,14 @@ function Home() {
             const response = await updateVaultItemProgress(item.id, item.season || 1, nextEpisode);
             if (response.success) {
                 toast.success(`Progress updated to S${item.season || 1} E${nextEpisode}`);
-                
-                // Auto-complete if show is ended/canceled and all episodes are watched
+
+                // Auto-complete if all seasons/episodes are watched (regardless of TMDB Ended status)
                 try {
-                    let type = item.type;
-                    if (type === 'anime') type = 'tv';
+                    let type = item.type === 'anime' ? 'tv' : item.type;
                     const details = await getMediaDetails(item.tmdbId, type);
-                    const isEndedOrCanceled = details?.status === 'Ended' || details?.status === 'Canceled';
-                    const nonZeroSeasons = details?.seasons?.filter(s => s.season_number > 0) || [];
-                    const lastSeasonObj = nonZeroSeasons[nonZeroSeasons.length - 1];
-                    
-                    if (isEndedOrCanceled && lastSeasonObj) {
-                        const currentSeason = item.season || 1;
-                        if (currentSeason === lastSeasonObj.season_number && nextEpisode >= lastSeasonObj.episode_count) {
-                            await updateVaultItemStatus(item.id, 'Completed');
-                            toast.success(`${item.title} automatically marked as Completed!`);
-                        }
+                    if (shouldAutoComplete(item, details)) {
+                        await updateVaultItemStatus(item.id, 'Completed');
+                        toast.success(`${item.title} automatically marked as Completed!`);
                     }
                 } catch (e) {
                     console.error("Auto-complete check failed on next episode:", e);
@@ -193,6 +187,18 @@ function Home() {
         }
     };
 
+    // Available years from current search/trending results for the year filter
+    const availableYears = useMemo(() => {
+        const years = new Set();
+        results.forEach(item => {
+            const date = item.release_date || item.first_air_date;
+            if (date && typeof date === "string") {
+                const year = date.substring(0, 4);
+                if (/^\d{4}$/.test(year)) years.add(parseInt(year, 10));
+            }
+        });
+        return Array.from(years).sort((a, b) => b - a);
+    }, [results]);
 
     return (
         <div className="page container">
@@ -298,27 +304,31 @@ function Home() {
                 className="chip-group--center"
             />
 
+            {/* Year Filter */}
+            {availableYears.length > 0 && !isTrending && (
+                <div className="year-filter">
+                    <label className="year-filter__label">Filter by Year</label>
+                    <select
+                        className="select"
+                        value={yearFilter}
+                        onChange={(e) => setYearFilter(e.target.value)}
+                        aria-label="Filter by year"
+                    >
+                        <option value="all">All Years</option>
+                        {availableYears.map(year => (
+                            <option key={year} value={String(year)}>{year}</option>
+                        ))}
+                    </select>
+                </div>
+            )}
+
             {!isOnline && (
                 <div className="banner banner--error banner--center">
                     You are currently offline. Search is unavailable, but you can browse your Vault.
                 </div>
             )}
 
-            {!isTrending && (
-                <div className="load-more-row">
-                    <button
-                        className="btn btn--outline btn--sm"
-                        onClick={() => {
-                            setCurrentQuery("");
-                            loadTrending();
-                        }}
-                    >
-                        <ArrowLeft size={16} /> Back to Trending
-                    </button>
-                </div>
-            )}
-
-            {isTrending && !loading && !error && (
+            {!isTrending && !loading && !error && (
                 <div className="section-header">
                     <h2 className="section-title">
                         {contentType === 'anime' ? 'Trending Anime' :
@@ -348,15 +358,23 @@ function Home() {
             {!loading && !error && results.length > 0 && (
                 <>
                     <div className="media-grid">
-                        {results.map((item, index) => (
-                            <MediaCard
-                                key={`${item.id}-${index}`}
-                                item={item}
-                                onAdd={handleAddToVault}
-                                onClick={() => setSelectedMedia(item)}
-                                isAdded={isInVault(item.id)}
-                            />
-                        ))}
+                        {results
+                            .filter(item => {
+                                if (yearFilter === "all") return true;
+                                const date = item.release_date || item.first_air_date;
+                                if (!date || typeof date !== "string") return false;
+                                const year = date.substring(0, 4);
+                                return year === yearFilter;
+                            })
+                            .map((item, index) => (
+                                <MediaCard
+                                    key={`${item.id}-${index}`}
+                                    item={item}
+                                    onAdd={handleAddToVault}
+                                    onClick={() => setSelectedMedia(item)}
+                                    isAdded={isInVault(item.id)}
+                                />
+                            ))}
                     </div>
 
                     {hasMore && (

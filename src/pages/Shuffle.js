@@ -46,6 +46,7 @@ function Shuffle() {
     const [source, setSource] = useState("watchlist"); // watchlist or external
     const [typeFilter, setTypeFilter] = useState("all"); // all, movie, tv, anime
     const [categoryFilter, setCategoryFilter] = useState("all"); // all, or specific string
+    const [yearFilter, setYearFilter] = useState("all"); // all, or specific year
     const [excludeWatched, setExcludeWatched] = useState(true); // Exclude completed items
 
     const [shuffling, setShuffling] = useState(false);
@@ -69,6 +70,15 @@ function Shuffle() {
         };
         fetchCyclePosters();
     }, []);
+
+    // Available years derived from the user's vault items
+    const availableYears = useMemo(() => {
+        const years = new Set();
+        vaultItems.forEach(item => {
+            if (item.year) years.add(item.year);
+        });
+        return Array.from(years).sort((a, b) => b - a);
+    }, [vaultItems]);
 
     // Get categories present in the user's vault to display when shuffling "from watchlist"
     const watchlistCategories = useMemo(() => {
@@ -100,12 +110,16 @@ function Shuffle() {
                 return itemCat === categoryFilter;
             });
         }
+        if (yearFilter !== "all") {
+            const year = parseInt(yearFilter, 10);
+            pool = pool.filter(item => item.year === year);
+        }
         if (excludeWatched) {
             pool = pool.filter(item => item.status !== "Completed");
         }
 
         return pool;
-    }, [vaultItems, typeFilter, categoryFilter, excludeWatched]);
+    }, [vaultItems, typeFilter, categoryFilter, yearFilter, excludeWatched]);
 
     // Anime comes from AniList trending, which has no genre parameter here.
     const genreFilterIgnored = source === "external" && typeFilter === "anime" && categoryFilter !== "all";
@@ -136,6 +150,7 @@ function Shuffle() {
             try {
                 let chosen = null;
                 const randomPage = Math.floor(Math.random() * 5) + 1; // Random page 1 to 5
+                const year = yearFilter !== "all" ? parseInt(yearFilter, 10) : null;
 
                 if (typeFilter === "anime") {
                     const data = await getTrendingAnime(randomPage, 20);
@@ -143,7 +158,12 @@ function Shuffle() {
                         const formatted = data.media.map(convertAnilistToTmdbFormat);
                         // Filter out items already in the vault
                         const filtered = formatted.filter(item => !isInVault(item.id));
-                        const pool = filtered.length > 0 ? filtered : formatted;
+                        // Client-side year filter for anime (AniList has no year param)
+                        const yearFiltered = year ? filtered.filter(item => {
+                            const date = item.first_air_date || item.release_date;
+                            return date && date.substring(0, 4) === String(year);
+                        }) : filtered;
+                        const pool = yearFiltered.length > 0 ? yearFiltered : formatted;
                         chosen = pool[Math.floor(Math.random() * pool.length)];
                     }
                 } else if (typeFilter === "movie" || typeFilter === "tv") {
@@ -152,7 +172,7 @@ function Shuffle() {
                         (typeFilter === "movie" ? CATEGORY_TO_GENRE_ID[categoryFilter] : TV_CATEGORY_TO_GENRE_ID[categoryFilter]) :
                         null;
 
-                    const data = await discoverMedia(typeFilter, randomPage, genreId, isAdult);
+                    const data = await discoverMedia(typeFilter, randomPage, genreId, isAdult, year);
                     if (data && data.results && data.results.length > 0) {
                         const resultsWithType = data.results.map(r => ({ ...r, media_type: typeFilter }));
                         // Filter out items already in the vault
@@ -168,7 +188,7 @@ function Shuffle() {
                         (chosenType === "movie" ? CATEGORY_TO_GENRE_ID[categoryFilter] : TV_CATEGORY_TO_GENRE_ID[categoryFilter]) :
                         null;
 
-                    const data = await discoverMedia(chosenType, randomPage, genreId, isAdult);
+                    const data = await discoverMedia(chosenType, randomPage, genreId, isAdult, year);
                     if (data && data.results && data.results.length > 0) {
                         const resultsWithType = data.results.map(r => ({ ...r, media_type: chosenType }));
                         const filtered = resultsWithType.filter(item => !isInVault(item.id));
@@ -330,6 +350,23 @@ function Shuffle() {
                             ))}
                         </select>
                     </div>
+
+                    {availableYears.length > 0 && (
+                        <div className="field">
+                            <label className="field-label" htmlFor="shuffleYear">Year</label>
+                            <select
+                                id="shuffleYear"
+                                value={yearFilter}
+                                onChange={(e) => setYearFilter(e.target.value)}
+                                className="select select--lg"
+                            >
+                                <option value="all">All Years</option>
+                                {availableYears.map(year => (
+                                    <option key={year} value={String(year)}>{year}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
                 </div>
 
                 {source === "watchlist" && (
