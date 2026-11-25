@@ -1,0 +1,99 @@
+/* Navigation can always be collapsed from the visible header. */
+.navigation-toggle { flex: 0 0 36px; width: 36px; height: 36px; padding: 0; display: grid; place-items: center; background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px; color: var(--text-muted); }
+.navigation-toggle:hover { color: var(--accent); border-color: var(--accent-line); }
+.sidebar { height: 100dvh; overflow-y: auto; }
+.sidebar-header { flex-shrink: 0; }
+.sidebar-links { flex-shrink: 0; }
+.brand-mark { padding: 0; background: transparent; border: 0; width: 34px; height: 34px; }
+.brand-mark img { width: 100%; height: 100%; object-fit: contain; }
+
+/* Card contents respond to available card width, not just window width. */
+.profile-page { max-width: 1180px; }
+.profile-grid { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr); align-items: start; gap: 24px; }
+.profile-card { container-name: account-card; container-type: inline-size; min-width: 0; }
+.profile-card__header, .profile-card__body { padding: clamp(18px, 2vw, 28px); min-width: 0; }
+.profile-avatar-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; width: 100%; min-width: 0; }
+.profile-page .avatar-display { width: 96px; height: 96px; aspect-ratio: 1; flex: 0 0 96px; }
+.profile-page .avatar-animated, .profile-page .avatar-fallback { width: 100%; height: 100%; aspect-ratio: 1; flex-shrink: 0; object-fit: cover; }
+.profile-identity { flex: 1 1 160px; min-width: 0; }
+.profile-name { font-size: clamp(20px, 2vw, 25px); overflow-wrap: anywhere; }
+.profile-email { align-items: flex-start; }
+.profile-email__address { min-width: 0; overflow-wrap: anywhere; }
+.profile-email svg, .profile-provider svg { margin-top: 3px; flex: 0 0 14px; }
+.profile-provider { align-items: flex-start; max-width: 100%; }
+.profile-provider > span { min-width: 0; overflow-wrap: anywhere; }
+.profile-page .stats-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.profile-page .stat { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: center; gap: 10px; padding: 14px; min-width: 0; }
+.profile-page .stat__icon { width: 36px; height: 36px; }
+.profile-page .stat__value { min-width: 0; font-size: clamp(24px, 2.2vw, 32px); line-height: 1.2; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.profile-page .stat__label { grid-column: 1 / -1; font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+.profile-section__row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; min-width: 0; }
+.profile-section__label { display: inline-flex; align-items: center; gap: 8px; flex: 1 1 110px; min-width: 0; overflow-wrap: anywhere; }
+.profile-section__row > .btn { flex: 0 1 auto; max-width: 100%; min-width: 0; min-height: 38px; height: auto; white-space: normal; text-align: center; }
+.profile-section__row > .btn svg { flex-shrink: 0; }
+.profile-section__note { min-width: 0; overflow-wrap: anywhere; line-height: 1.8; }
+.profile-divider { margin-top: 8px; }
+.password-settings { padding-top: 20px; border-top: 1px solid var(--border); }
+.password-enabled { display: flex; align-items: flex-start; gap: 8px; color: var(--done); }
+.password-enabled svg { flex: 0 0 15px; margin-top: 3px; }
+.create-password-form { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding-top: 14px; min-width: 0; }
+.create-password-form .field { min-width: 0; display: grid; gap: 7px; margin: 0; }
+.create-password-form .input { width: 100%; min-width: 0; font-size: 16px; }
+.create-password-form .input[readonly] { color: var(--text-muted); }
+.create-password-form > .btn { min-height: 44px; height: auto; white-space: normal; }
+.password-visibility { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-muted); }
+.password-visibility input { width: 16px; height: 16px; accent-color: var(--accent); }
+.password-settings-error { border: 1px solid var(--danger-line); background: var(--danger-soft); color: var(--danger-text); padding: 12px; border-radius: 8px; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.profile-page .avatar-picker-dialog { width: 100%; max-width: 640px; padding: 0; }
+.avatar-picker-dialog .modal-header { padding: 24px 24px 14px; }
+.profile-page .avatar-picker-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr)); gap: 12px; padding: 14px 24px 20px; min-width: 0; }
+.profile-page .avatar-option { min-width: 0; height: auto; padding: 12px; }
+.profile-page .avatar-preview-wrap { width: 100%; height: auto; aspect-ratio: 1; }
+.profile-page .avatar-preview { width: 100%; height: 100%; object-fit: contain; }
+.profile-page .avatar-option__label { font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; }
+.avatar-picker-dialog .modal-actions { justify-content: flex-end; padding: 0 24px 24px; margin: 0; }
+.profile-page .profile-delete-dialog { width: 100%; max-width: 520px; padding: 24px; }
+.profile-delete-dialog .modal-header { display: flex; align-items: center; gap: 12px; padding: 0; margin-bottom: 14px; }
+.profile-delete-dialog .modal-header__title { font-size: 23px; }
+.profile-delete-dialog .modal-header__icon { flex-shrink: 0; }
+.profile-delete-dialog .modal-body { padding: 0; margin: 0 0 20px; line-height: 1.8; }
+.profile-delete-dialog .reauth-card { padding: 16px; margin-bottom: 18px; min-width: 0; }
+.profile-delete-dialog .reauth-form { min-width: 0; }
+.profile-delete-dialog .input { width: 100%; min-width: 0; font-size: 16px; }
+.profile-delete-dialog .modal-actions { flex-wrap: wrap; margin: 0; }
+.profile-delete-dialog .modal-actions > .btn { min-width: 0; white-space: normal; flex: 1 1 auto; }
+@container account-card (max-width: 310px) {
+  .profile-page .stats-row { grid-template-columns: minmax(0, 1fr); }
+  .profile-section__row > .btn { flex: 1 1 100%; }
+}
+@media (max-width: 1100px) {
+  .profile-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 768px) {
+  .sidebar { height: auto; overflow-y: visible; }
+  .sidebar-collapsed .sidebar { display: none; }
+  .sidebar-collapsed .main-content-layout { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  .navigation-toggle { flex-basis: 34px; width: 34px; height: 34px; }
+  .profile-grid { gap: 18px; }
+  .profile-card__header, .profile-card__body { padding: 22px; }
+  .profile-page .stats-row { gap: 10px; }
+}
+@media (max-width: 420px) {
+  .top-header { padding-left: 14px; padding-right: 14px; gap: 10px; }
+  .header-mobile-brand .nav-brand { gap: 6px; }
+  .header-mobile-brand .brand-wordmark { font-size: 15px; }
+  .header-mobile-brand .brand-mark { width: 24px; height: 24px; }
+  .navigation-toggle { flex-basis: 30px; width: 30px; height: 32px; }
+  .header-actions { gap: 8px; }
+  .profile-page .stat { padding: 12px; gap: 8px; }
+  .profile-page .avatar-picker-grid { padding: 12px 18px 18px; }
+  .avatar-picker-dialog .modal-header { padding: 20px 18px 12px; }
+  .avatar-picker-dialog .modal-actions { padding: 0 18px 18px; }
+  .profile-page .profile-delete-dialog { padding: 20px; }
+}
+@media (max-width: 320px) {
+  .profile-page .stats-row { grid-template-columns: minmax(0, 1fr); }
+  .header-mobile-brand .brand-mark { display: none; }
+  .header-mobile-brand .brand-wordmark { font-size: 13px; }
+  .header-actions > .btn { padding: 7px 8px; font-size: 10px; }
+}

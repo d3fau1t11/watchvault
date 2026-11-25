@@ -5,16 +5,15 @@
    available season AND episode — regardless of whether TMDB says the show is
    still in production. The old behaviour also required TMDB status to be
    "Ended"/"Canceled", which we keep as an additional qualifying path. */
+import { playableSeasons, normalizeProgress } from './series';
+
 export const shouldAutoComplete = (item, tmdbDetails) => {
     if (!item || !tmdbDetails) return false;
     if (item.type !== "tv" && item.type !== "anime") return false;
     if (item.status === "Completed") return false;
 
-    const userSeason = item.season || 1;
-    const userEpisode = item.episode || 0;
-
-    const nonZeroSeasons = (tmdbDetails.seasons || [])
-        .filter(s => s.season_number > 0);
+    const { season: userSeason, episode: userEpisode } = normalizeProgress(item, tmdbDetails);
+    const nonZeroSeasons = playableSeasons(tmdbDetails);
 
     if (nonZeroSeasons.length === 0) return false;
 

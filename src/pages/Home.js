@@ -1,15 +1,18 @@
-import { useState, useEffect, useCallback, lazy, Suspense, useMemo } from "react";
-import { searchMedia, getTrending, getMediaDetails } from "../services/tmdbApi";
+import { useState, useEffect, useCallback, lazy, Suspense, useMemo, useRef } from "react";
+import { searchMedia, getTrending } from "../services/tmdbApi";
+import { getSeriesDetails, getNextSeriesProgress } from "../services/seriesService";
+import { normalizeProgress } from "../utils/series";
 import { searchAnime, getTrendingAnime, convertAnilistToTmdbFormat } from "../services/anilistApi";
 import { addToVault, updateVaultItemProgress, updateVaultItemStatus } from "../services/firestoreService";
 import { useAuth } from "../context/AuthContext";
 import { useVault } from "../context/VaultContext";
-import { useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import SearchBar from "../components/SearchBar";
 import MediaCard from "../components/MediaCard";
 import FilterTabs from "../components/FilterTabs";
-import { Play } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Compass, Play, RefreshCw } from "lucide-react";
+import FeaturedDiscovery from "../components/FeaturedDiscovery";
 import { shouldAutoComplete } from "../utils/autoComplete";
 
 const MediaModal = lazy(() => import("../components/MediaModal"));
@@ -20,6 +23,11 @@ function Home() {
     const [error, setError] = useState(null);
     const [page, setPage] = useState(1);
     const [currentQuery, setCurrentQuery] = useState("");
+    const [activeQuery, setActiveQuery] = useState("");
+    const [reloadKey, setReloadKey] = useState(0);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const requestRef = useRef(0);
+    const location = useLocation();
     const [hasMore, setHasMore] = useState(true);
     const [selectedMedia, setSelectedMedia] = useState(null);
     const [isTrending, setIsTrending] = useState(true);
@@ -43,65 +51,58 @@ function Home() {
     const navigate = useNavigate();
 
     const loadTrending = useCallback(async () => {
+        const request = ++requestRef.current;
         setLoading(true);
-        setIsTrending(true);
-        setCurrentQuery("");
+        setError(null);
+        setIsTrending(!activeQuery);
+        setPage(1);
+        setLoadingMore(false);
         try {
             if (contentType === "anime") {
-                const data = await getTrendingAnime(1, 20);
+                const data = activeQuery ? await searchAnime(activeQuery, 1, 20) : await getTrendingAnime(1, 20);
+                if (request !== requestRef.current) return;
                 const convertedData = data.media.map(convertAnilistToTmdbFormat);
                 setResults(convertedData);
                 setPage(1);
                 setHasMore(data.pageInfo.hasNextPage);
             } else {
                 const type = contentType === "movies" ? "movie" : contentType === "tv" ? "tv" : "all";
-                const data = await getTrending(1, type);
+                const data = activeQuery ? await searchMedia(activeQuery, 1, type) : await getTrending(1, type);
+                if (request !== requestRef.current) return;
                 setResults(data.results);
                 setPage(1);
                 setHasMore(data.page < data.total_pages);
             }
         } catch (err) {
-            setError("Failed to fetch trending media.");
+            if (request === requestRef.current) setError("We couldn’t load these titles. Please try again.");
         } finally {
-            setLoading(false);
+            if (request === requestRef.current) setLoading(false);
         }
-    }, [contentType]);
+    }, [contentType, activeQuery]);
 
     useEffect(() => {
         loadTrending();
-    }, [loadTrending]);
+        return () => { requestRef.current += 1; };
+    }, [loadTrending, reloadKey]);
 
-    const handleSearch = async (query) => {
-        if (!query) {
-            loadTrending();
-            return;
+    useEffect(() => {
+        if (location.hash === "#discover-search") {
+            document.getElementById("discover-search")?.scrollIntoView({ behavior: "smooth", block: "center" });
+            document.getElementById("media-search")?.focus({ preventScroll: true });
         }
-        setLoading(true);
-        setError(null);
+    }, [location.hash]);
+
+    const handleSearch = (query) => {
         setCurrentQuery(query);
-        setIsTrending(false);
-        try {
-            if (contentType === "anime") {
-                const data = await searchAnime(query, 1, 20);
-                const convertedData = data.media.map(convertAnilistToTmdbFormat);
-                setResults(convertedData);
-                setPage(1);
-                setHasMore(data.pageInfo.hasNextPage);
-            } else {
-                const type = contentType === "movies" ? "movie" : contentType === "tv" ? "tv" : "all";
-                const data = await searchMedia(query, 1, type);
-                setResults(data.results);
-                setPage(1);
-                setHasMore(data.page < data.total_pages);
-            }
-        } catch (err) {
-            setError("Failed to fetch search results.");
-        } finally {
-            setLoading(false);
-        }
+        setActiveQuery(query.trim());
+        setYearFilter("all");
+        setReloadKey(key => key + 1);
     };
 
     const loadMore = async () => {
+        if (loadingMore) return;
+        setLoadingMore(true);
+        const request = requestRef.current;
         const nextPage = page + 1;
         try {
             let newData;
@@ -109,8 +110,9 @@ function Home() {
                 if (isTrending) {
                     newData = await getTrendingAnime(nextPage, 20);
                 } else {
-                    newData = await searchAnime(currentQuery, nextPage, 20);
+                    newData = await searchAnime(activeQuery, nextPage, 20);
                 }
+                if (request !== requestRef.current) return;
                 const convertedData = newData.media.map(convertAnilistToTmdbFormat);
                 setResults([...results, ...convertedData]);
                 setPage(nextPage);
@@ -121,14 +123,17 @@ function Home() {
                 if (isTrending) {
                     data = await getTrending(nextPage, type);
                 } else {
-                    data = await searchMedia(currentQuery, nextPage, type);
+                    data = await searchMedia(activeQuery, nextPage, type);
                 }
+                if (request !== requestRef.current) return;
                 setResults([...results, ...data.results]);
                 setPage(nextPage);
                 setHasMore(data.page < data.total_pages);
             }
         } catch (err) {
             toast.error("Failed to load more results.");
+        } finally {
+            if (request === requestRef.current) setLoadingMore(false);
         }
     };
 
@@ -164,17 +169,21 @@ function Home() {
                 toast.error("Failed to update status.");
             }
         } else {
-            // Increment episode for TV/Anime
-            const nextEpisode = (item.episode || 0) + 1;
-            const response = await updateVaultItemProgress(item.id, item.season || 1, nextEpisode);
+            try {
+            const details = await getSeriesDetails(item);
+            const next = await getNextSeriesProgress({ ...item, ...normalizeProgress(item, details) }, details);
+            if (!next) {
+                if (shouldAutoComplete(item, details)) await updateVaultItemStatus(item.id, 'Completed');
+                else toast.error('No episodes are available for this title.');
+                return;
+            }
+            const response = await updateVaultItemProgress(item.id, next.season, next.episode);
             if (response.success) {
-                toast.success(`Progress updated to S${item.season || 1} E${nextEpisode}`);
+                toast.success(`Progress updated to S${next.season} E${next.episode}`);
 
                 // Auto-complete if all seasons/episodes are watched (regardless of TMDB Ended status)
                 try {
-                    let type = item.type === 'anime' ? 'tv' : item.type;
-                    const details = await getMediaDetails(item.tmdbId, type);
-                    if (shouldAutoComplete(item, details)) {
+                    if (shouldAutoComplete({ ...item, ...next }, details)) {
                         await updateVaultItemStatus(item.id, 'Completed');
                         toast.success(`${item.title} automatically marked as Completed!`);
                     }
@@ -184,6 +193,7 @@ function Home() {
             } else {
                 toast.error("Failed to update progress.");
             }
+            } catch (error) { toast.error('Could not load episodes. Your progress has not changed.'); }
         }
     };
 
@@ -201,17 +211,25 @@ function Home() {
     }, [results]);
 
     return (
-        <div className="page container">
-            <div className="page-header page-header--center">
+        <div className="page container discovery-page">
+            <div className="page-header discovery-heading">
                 <div className="page-heading">
-                    <h1 className="page-title">Discover &amp; Vault</h1>
-                    <p className="page-subtitle">
-                        Search for your favorite movies, TV series, or anime and save them for later.
-                    </p>
+                    <span className="eyebrow">A WORLD OF STORIES</span>
+                    <h1 className="page-title">Your next great watch<span className="accent-text">.</span></h1>
+                    <p className="page-subtitle">Discover something worth your time. Keep everything you love.</p>
                 </div>
+                <Link className="text-link" to={currentUser ? "/vault" : "/login"}>Open my vault <ArrowUpRight size={16} /></Link>
             </div>
 
-            <SearchBar query={currentQuery} setQuery={setCurrentQuery} onSearch={handleSearch} />
+            {isTrending && !loading && !error && <FeaturedDiscovery items={results} onSelect={setSelectedMedia} onAdd={handleAddToVault} />}
+
+            <div className="discovery-search-panel" id="discover-search">
+                <SearchBar query={currentQuery} setQuery={setCurrentQuery} onSearch={handleSearch} contentType={contentType} />
+                <FilterTabs options={[
+                    { value: 'all', label: 'Everything' }, { value: 'movies', label: 'Movies' },
+                    { value: 'tv', label: 'TV series' }, { value: 'anime', label: 'Anime' }
+                ]} activeOption={contentType} onChange={(value) => { setContentType(value); setYearFilter("all"); }} />
+            </div>
 
             {/* Continue Watching Section */}
             {isTrending && currentUser && getWatchingItems().length > 0 && (
@@ -220,6 +238,7 @@ function Home() {
                         <h2 className="section-title">
                             <Play size={20} /> Continue Watching
                         </h2>
+                        <Link className="text-link" to="/vault">View all <ArrowRight size={15} /></Link>
                     </div>
                     <div className="continue-grid">
                         {getWatchingItems()
@@ -237,6 +256,10 @@ function Home() {
                                         key={item.id}
                                         className="continue-card"
                                         onClick={() => setSelectedMedia(item)}
+                                        tabIndex={0}
+                                        role="button"
+                                        aria-label={`Continue ${item.title}`}
+                                        onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setSelectedMedia(item); } }}
                                     >
                                         {tilePoster ? (
                                             <img
@@ -259,7 +282,7 @@ function Home() {
                                                 {item.type !== 'movie' && (
                                                     <div>
                                                         <div className="progress-meta">
-                                                            <span>S{item.season || 1} E{item.episode || 0}</span>
+                                                            <span>{item.hasEpisodes === false ? 'No episodes available' : `S${item.season || 1} E${item.episode || 0}`}</span>
                                                             <span>Progress</span>
                                                         </div>
                                                         <div className="progress">
@@ -272,12 +295,13 @@ function Home() {
                                                 )}
                                                 <button
                                                     className="btn btn--sm btn--block"
+                                                    disabled={item.hasEpisodes === false}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         handleNextEpisode(item);
                                                     }}
                                                 >
-                                                    <Play size={14} /> {item.type === 'movie' ? 'Mark Completed' : 'Next Episode'}
+                                                    <Play size={14} /> {item.hasEpisodes === false ? 'No episodes available' : item.type === 'movie' ? 'Mark Completed' : 'Next Episode'}
                                                 </button>
                                             </div>
                                         </div>
@@ -287,22 +311,6 @@ function Home() {
                     </div>
                 </div>
             )}
-
-            {/* Content Type Filter */}
-            <FilterTabs
-                options={[
-                    { value: 'all', label: 'All' },
-                    { value: 'movies', label: 'Movies' },
-                    { value: 'tv', label: 'TV Series' },
-                    { value: 'anime', label: 'Anime' }
-                ]}
-                activeOption={contentType}
-                onChange={(value) => {
-                    setContentType(value);
-                    loadTrending();
-                }}
-                className="chip-group--center"
-            />
 
             {/* Year Filter */}
             {availableYears.length > 0 && !isTrending && (
@@ -328,20 +336,23 @@ function Home() {
                 </div>
             )}
 
-            {!isTrending && !loading && !error && (
+            {isTrending && !loading && !error && (
                 <div className="section-header">
                     <h2 className="section-title">
+                        <Compass size={20} />
                         {contentType === 'anime' ? 'Trending Anime' :
                          contentType === 'movies' ? 'Trending Movies' :
                          contentType === 'tv' ? 'Trending TV Series' :
                          'Trending This Week'}
                     </h2>
+                    <span className="section-meta">The stories everyone’s talking about</span>
                 </div>
             )}
 
             {!isTrending && !loading && !error && results.length > 0 && (
                 <div className="section-header">
-                    <h2 className="section-title">Search Results for "{currentQuery}"</h2>
+                    <h2 className="section-title">Results for “{activeQuery}”</h2>
+                    <button className="text-link" onClick={() => handleSearch("")}>Back to trending <ArrowRight size={15} /></button>
                 </div>
             )}
 
@@ -353,7 +364,7 @@ function Home() {
                 </div>
             )}
 
-            {error && <div className="banner banner--error banner--center">{error}</div>}
+            {error && <div className="banner banner--error banner--center" role="alert">{error}<button className="btn btn--outline btn--sm" onClick={() => setReloadKey(key => key + 1)}><RefreshCw size={15} />Try again</button></div>}
 
             {!loading && !error && results.length > 0 && (
                 <>
@@ -379,8 +390,8 @@ function Home() {
 
                     {hasMore && (
                         <div className="load-more-row">
-                            <button className="show-more-btn" onClick={loadMore}>
-                                Load More
+                            <button className="show-more-btn" onClick={loadMore} disabled={loadingMore}>
+                                {loadingMore ? "Loading titles…" : "Discover more"} <ArrowRight size={16} />
                             </button>
                         </div>
                     )}
@@ -392,6 +403,10 @@ function Home() {
                     No results to display. Try searching for something else!
                 </div>
             )}
+
+            {!loading && !error && results.length > 0 && yearFilter !== "all" && !results.some(item => (item.release_date || item.first_air_date || "").slice(0, 4) === yearFilter) && <div className="state-note">No titles from {yearFilter} on these pages. Try another year or load more titles.</div>}
+
+            <footer className="page-footer"><span><span className="accent-text">watchvault</span> · A home for your next obsession.</span><span>Movies. Series. Anime.</span></footer>
 
             {selectedMedia && (
                 <Suspense fallback={null}>

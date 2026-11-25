@@ -7,15 +7,18 @@ import {
   Sparkles,
   BarChart3,
   Bell,
-  ChevronLeft,
   ChevronRight,
   Shuffle,
   FolderOpen,
   User,
+  Compass,
+  ArrowUpRight,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useVault } from "../context/VaultContext";
-import { getTVDetailsWithAiring, getMediaDetails, getCollection } from "../services/tmdbApi";
+import { subscribeNotifications, checkUserNotifications, markNotificationsRead } from "../services/notificationService";
 import toast from "react-hot-toast";
 
 function Navbar() {
@@ -24,19 +27,32 @@ function Navbar() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const { vaultItems } = useVault();
   const [notifications, setNotifications] = useState([]);
-  const [readNotifications, setReadNotifications] = useState(() => {
-    try {
-      const saved = localStorage.getItem("read_notifications");
-      return saved ? new Set(JSON.parse(saved)) : new Set();
-    } catch (e) {
-      return new Set();
-    }
-  });
+  const [notificationOwner, setNotificationOwner] = useState(null);
+  const [notificationError, setNotificationError] = useState("");
+  const [notificationBusy, setNotificationBusy] = useState(false);
+  const [notificationFilter, setNotificationFilter] = useState("unread");
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef(null);
   const [isCollapsed, setIsCollapsed] = useState(() => {
-    return localStorage.getItem("sidebar_collapsed") === "true";
+    try { return localStorage.getItem("sidebar_collapsed") === "true"; }
+    catch { return false; }
   });
+
+  const navigation = [
+    { to: "/", label: "Discover", icon: Compass },
+    { to: "/vault", label: "My Vault", icon: LayoutDashboard },
+    { to: "/recommendations", label: "For you", icon: Sparkles },
+    { to: "/categories", label: "Browse genres", icon: FolderOpen },
+    { to: "/shuffle", label: "Shuffle", icon: Shuffle },
+    { to: "/stats", label: "My statistics", icon: BarChart3 },
+    { to: "/profile", label: "My profile", icon: User },
+  ];
+  const pageLabel = navigation.find(item => item.to === location.pathname)?.label || "Your account";
+
+  useEffect(() => {
+    setShowDropdown(false);
+    document.title = `${pageLabel} · WatchVault`;
+  }, [location.pathname, pageLabel]);
 
   useEffect(() => {
     if (isCollapsed) {
@@ -44,7 +60,8 @@ function Navbar() {
     } else {
       document.body.classList.remove("sidebar-collapsed");
     }
-    localStorage.setItem("sidebar_collapsed", isCollapsed);
+    try { localStorage.setItem("sidebar_collapsed", isCollapsed); } catch { /* Navigation works even when browser storage is unavailable. */ }
+    return () => document.body.classList.remove('sidebar-collapsed');
   }, [isCollapsed]);
 
   useEffect(() => {
@@ -71,220 +88,108 @@ function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Notifications: new seasons for TV/Anime in vault, and new movies in
-  // collections/franchises the user already owns a movie from.
+  // A private subscription replaces the previous account's inbox on sign-in changes.
   useEffect(() => {
-    const checkNotifications = async () => {
-      if (!currentUser || !vaultItems || vaultItems.length === 0) {
-        setNotifications([]);
-        return;
-      }
+    const uid = currentUser?.uid;
+    setNotifications([]);
+    setNotificationOwner(uid || null);
+    setNotificationError("");
+    setNotificationBusy(false);
+    setShowDropdown(false);
+    if (!uid) return;
+    let active = true;
+    const unsubscribe = subscribeNotifications(uid, items => {
+      if (active) { setNotifications(items.filter(item => item.userId === uid)); setNotificationError(""); }
+    }, () => { if (active) setNotificationError("Your notifications could not sync. Please check your connection and try again."); });
+    return () => { active = false; unsubscribe(); };
+  }, [currentUser?.uid]);
 
-      const tvShows = vaultItems.filter(
-        item => (item.type === "tv" || item.type === "anime")
-      );
-      const movies = vaultItems.filter(item => item.type === "movie");
-
-      const newNotifications = [];
-
-      // --- New seasons for TV/Anime ---
-      const seasonBaseline = JSON.parse(
-        localStorage.getItem("vault_season_baseline") || "{}"
-      );
-
-      for (const show of tvShows) {
-        try {
-          const details = await getTVDetailsWithAiring(show.tmdbId);
-          if (!details) continue;
-
-          const tmdbSeasonCount = (details.seasons || [])
-            .filter(s => s.season_number > 0).length;
-          const knownBaseline = seasonBaseline[show.tmdbId] || 0;
-
-          if (tmdbSeasonCount > knownBaseline && knownBaseline > 0) {
-            newNotifications.push({
-              id: `new-season-${show.tmdbId}`,
-              type: "new-season",
-              title: show.title,
-              tmdbId: show.tmdbId,
-              poster: show.poster,
-              newSeasons: tmdbSeasonCount - knownBaseline,
-              totalSeasons: tmdbSeasonCount,
-            });
-          }
-
-          // Persist the latest known season count as baseline
-          if (!seasonBaseline[show.tmdbId] || tmdbSeasonCount > seasonBaseline[show.tmdbId]) {
-            seasonBaseline[show.tmdbId] = tmdbSeasonCount;
-          }
-        } catch (err) {
-          console.error("Failed to check new seasons for", show.title, err);
-        }
-      }
-
-      try {
-        localStorage.setItem("vault_season_baseline", JSON.stringify(seasonBaseline));
-      } catch (e) {
-        console.error("Failed to persist season baseline", e);
-      }
-
-      // --- New movies in collections/franchises ---
-      for (const movie of movies) {
-        try {
-          const details = await getMediaDetails(movie.tmdbId, "movie");
-          if (!details || !details.belongs_to_collection) continue;
-
-          const collectionId = details.belongs_to_collection.id;
-          const collection = await getCollection(collectionId);
-          if (!collection || !collection.parts) continue;
-
-          const addedAt = movie.createdAt?.toDate
-            ? movie.createdAt.toDate()
-            : new Date();
-
-          // If any movie in the collection was released after this item was
-          // added to the vault, it's a new franchise release.
-          const newFranchiseMovie = collection.parts.find((part) => {
-            if (!part.release_date) return false;
-            const releaseDate = new Date(part.release_date);
-            return releaseDate > addedAt;
-          });
-
-          if (newFranchiseMovie) {
-            newNotifications.push({
-              id: `franchise-${movie.tmdbId}`,
-              type: "franchise",
-              title: movie.title,
-              tmdbId: movie.tmdbId,
-              poster: movie.poster,
-              movieTitle: newFranchiseMovie.title,
-            });
-          }
-        } catch (err) {
-          console.error("Failed to check franchise for", movie.title, err);
-        }
-      }
-
-      setNotifications(newNotifications);
-    };
-
-    const timeoutId = setTimeout(() => {
-      checkNotifications();
+  useEffect(() => {
+    const uid = currentUser?.uid;
+    if (!uid || !vaultItems.length) return;
+    let active = true;
+    const timeout = setTimeout(() => {
+      checkUserNotifications(uid, vaultItems, () => active).catch(() => {
+        if (active) setNotificationError("Some new releases could not be checked. Saved notifications are still available.");
+      });
     }, 1200);
+    return () => { active = false; clearTimeout(timeout); };
+  }, [currentUser?.uid, vaultItems]);
 
-    return () => clearTimeout(timeoutId);
-  }, [currentUser, vaultItems]);
+  const ownedNotifications = notificationOwner === currentUser?.uid ? notifications : [];
+  const activeNotifications = ownedNotifications.filter(notification => !notification.read);
+  const visibleNotifications = notificationFilter === 'all' ? ownedNotifications : activeNotifications;
 
-  const activeNotifications = notifications.filter(
-    (n) => !readNotifications.has(n.id)
-  );
-
-  const handleMarkAsRead = (e, notification) => {
-    e.stopPropagation();
-    const newRead = new Set(readNotifications);
-    newRead.add(notification.id);
-    setReadNotifications(newRead);
+  const saveReadAction = async (ids, action) => {
+    const uid = currentUser?.uid;
+    if (!uid || notificationBusy) return;
+    setNotificationBusy(true);
     try {
-      localStorage.setItem("read_notifications", JSON.stringify(Array.from(newRead)));
-      toast.success("Notification dismissed");
-    } catch (err) {
-      console.error("Failed to save read notification to localStorage", err);
-    }
+      await markNotificationsRead(uid, ids, action);
+      toast.success(action === 'mark_all_read' ? 'All notifications marked as read' : 'Notification marked as read');
+    } catch { toast.error('The read action could not be saved. Please try again.'); }
+    finally { setNotificationBusy(false); }
   };
-
-  const handleDismissAll = (e) => {
-    e.stopPropagation();
-    const newRead = new Set(readNotifications);
-    activeNotifications.forEach((n) => newRead.add(n.id));
-    setReadNotifications(newRead);
-    try {
-      localStorage.setItem("read_notifications", JSON.stringify(Array.from(newRead)));
-      toast.success("All notifications dismissed");
-    } catch (err) {
-      console.error("Failed to save read notifications to localStorage", err);
-    }
+  const handleMarkAsRead = (event, notification) => {
+    event.stopPropagation();
+    saveReadAction([notification.id], 'mark_read');
+  };
+  const handleDismissAll = event => {
+    event.stopPropagation();
+    saveReadAction(activeNotifications.map(notification => notification.id), 'mark_all_read');
   };
 
   return (
     <>
       {/* Sidebar Navigation */}
-      <aside className="sidebar">
+      <aside className="sidebar" id="site-navigation">
         <div className="sidebar-header">
-          <Link to="/" className="nav-brand">
-            WatchVault
+          <Link to="/" className="nav-brand" aria-label="WatchVault home">
+            <span className="brand-mark"><img src="/favicon.svg" alt="" width="34" height="34" /></span>
+            <span className="brand-wordmark">watch<span>vault</span><i /></span>
           </Link>
         </div>
-        <div className="sidebar-links">
-          <Link
-            to="/"
-            className={`sidebar-link ${location.pathname === "/" ? "active" : ""}`}
-          >
-            <Search size={20} />
-            <span className="sidebar-text">Search</span>
+        <span className="nav-section-label">YOUR WATCH SPACE</span>
+        <nav className="sidebar-links" aria-label="Main navigation">
+          {navigation.map(({ to, label, icon: Icon }) => (
+            <Link key={to} to={to} title={label}
+              aria-current={location.pathname === to ? "page" : undefined}
+              className={`sidebar-link ${location.pathname === to ? "active" : ""}`}>
+              <Icon size={19} strokeWidth={1.7} />
+              <span className="sidebar-text">{label}</span>
+              {to === "/vault" && vaultItems.length > 0 && <span className="nav-count">{vaultItems.length}</span>}
+            </Link>
+          ))}
+        </nav>
+        <div className="sidebar-bottom">
+          <div className="sidebar-note">
+            <span className="sidebar-note__icon"><Sparkles size={20} /></span>
+            <h3>A little less scrolling.<br />A lot more watching.</h3>
+            <p>Your next favorite is out there.</p>
+            <Link to="/shuffle">Find my next watch <ArrowUpRight size={15} /></Link>
+          </div>
+          <Link to={currentUser ? "/profile" : "/login"} className="sidebar-account">
+            <span className="account-avatar">{currentUser?.displayName?.charAt(0) || currentUser?.email?.charAt(0)?.toUpperCase() || <User size={17} />}</span>
+            <span className="sidebar-text"><strong>{currentUser?.displayName || "Your watch space"}</strong><small>{currentUser ? "Manage your account" : "Sign in to make it yours"}</small></span>
+            <ChevronRight size={15} />
           </Link>
-          {currentUser && (
-            <>
-              <Link
-                to="/vault"
-                className={`sidebar-link ${location.pathname === "/vault" ? "active" : ""}`}
-              >
-                <LayoutDashboard size={20} />
-                <span className="sidebar-text">My Vault</span>
-              </Link>
-              <Link
-                to="/recommendations"
-                className={`sidebar-link ${location.pathname === "/recommendations" ? "active" : ""}`}
-              >
-                <Sparkles size={20} />
-                <span className="sidebar-text">Discover</span>
-              </Link>
-              <Link
-                to="/stats"
-                className={`sidebar-link ${location.pathname === "/stats" ? "active" : ""}`}
-              >
-                <BarChart3 size={20} />
-                <span className="sidebar-text">Stats</span>
-              </Link>
-              <Link
-                to="/shuffle"
-                className={`sidebar-link ${location.pathname === "/shuffle" ? "active" : ""}`}
-              >
-                <Shuffle size={20} />
-                <span className="sidebar-text">Shuffle</span>
-              </Link>
-              <Link
-                to="/categories"
-                className={`sidebar-link ${location.pathname === "/categories" ? "active" : ""}`}
-              >
-                <FolderOpen size={20} />
-                <span className="sidebar-text">Categories</span>
-              </Link>
-              <Link
-                to="/profile"
-                className={`sidebar-link ${location.pathname === "/profile" ? "active" : ""}`}
-              >
-                <User size={20} />
-                <span className="sidebar-text">Profile</span>
-              </Link>
-            </>
-          )}
         </div>
-        <button
-          className="sidebar-toggle-btn"
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-        >
-          {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
-        </button>
       </aside>
 
       {/* Top Header Panel */}
       <header className="top-header">
+        <button type="button" className="navigation-toggle" onClick={() => setIsCollapsed(collapsed => !collapsed)} title={isCollapsed ? 'Expand navigation' : 'Collapse navigation'} aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!isCollapsed} aria-controls="site-navigation">
+          {isCollapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}
+        </button>
         <div className="header-mobile-brand">
           <Link to="/" className="nav-brand">
-            WatchVault
+            <span className="brand-mark"><img src="/favicon.svg" alt="" width="30" height="30" /></span>
+            <span className="brand-wordmark">watch<span>vault</span><i /></span>
           </Link>
         </div>
+
+        <div className="header-breadcrumb"><span>Your watch space</span><ChevronRight size={13} /><strong>{pageLabel}</strong></div>
+        <Link className="header-search-link" to="/#discover-search"><Search size={17} /><span>Find your next favorite</span><span className="search-link-arrow">↗</span></Link>
 
         <div className="header-actions">
           {!isOnline && (
@@ -300,6 +205,7 @@ function Navbar() {
                   onClick={() => setShowDropdown(!showDropdown)}
                   title="Notifications"
                   aria-label="Notifications"
+                  aria-expanded={showDropdown}
                 >
                   <Bell size={20} />
                   {activeNotifications.length > 0 && (
@@ -316,24 +222,30 @@ function Navbar() {
                           {activeNotifications.length} New
                         </span>
                       </div>
+                      <div className="notification-filter" role="group" aria-label="Notification view">
+                        <button className={`chip${notificationFilter === 'unread' ? ' chip--active' : ''}`} aria-pressed={notificationFilter === 'unread'} onClick={() => setNotificationFilter('unread')}>Unread</button>
+                        <button className={`chip${notificationFilter === 'all' ? ' chip--active' : ''}`} aria-pressed={notificationFilter === 'all'} onClick={() => setNotificationFilter('all')}>All notifications</button>
+                      </div>
                       {activeNotifications.length > 0 && (
                         <div className="notification-header__actions">
                           <button
                             className="btn btn--ghost btn--xs btn--flex"
                             onClick={handleDismissAll}
+                            disabled={notificationBusy}
                           >
-                            Dismiss All
+                            Mark all read
                           </button>
                         </div>
                       )}
                     </div>
-                    {activeNotifications.length === 0 ? (
+                    {notificationError && <div className="notification-error" role="alert">{notificationError}</div>}
+                    {visibleNotifications.length === 0 ? (
                       <div className="notification-empty">
                         No new seasons or franchise releases.
                       </div>
                     ) : (
                       <div className="notification-list">
-                        {activeNotifications.map((notif) => {
+                        {visibleNotifications.map((notif) => {
                           const notifPoster = notif.poster
                             ? (notif.poster.startsWith("http://") || notif.poster.startsWith("https://")
                               ? notif.poster
@@ -343,7 +255,7 @@ function Navbar() {
                           return (
                             <div
                               key={notif.id}
-                              className="notification-item"
+                              className={`notification-item${notif.read ? ' notification-item--read' : ''}`}
                               onClick={() => {
                                 setShowDropdown(false);
                               }}
@@ -365,12 +277,13 @@ function Navbar() {
                                     : `New release in the "${notif.movieTitle}" franchise`}
                                 </div>
                                 <div className="notification-actions">
-                                  <button
+                                  {notif.read ? <span className="notification-read-label">Read</span> : <button
                                     className="btn btn--ghost btn--xs btn--flex"
                                     onClick={(e) => handleMarkAsRead(e, notif)}
+                                    disabled={notificationBusy}
                                   >
-                                    Dismiss
-                                  </button>
+                                    Mark read
+                                  </button>}
                                 </div>
                               </div>
                             </div>
@@ -382,13 +295,13 @@ function Navbar() {
                 )}
               </div>
 
-              <button onClick={logout} className="btn btn--outline btn--sm">
+              <button onClick={logout} className="btn btn--outline btn--sm header-logout">
                 <LogOut size={16} /> Logout
               </button>
             </>
           ) : (
             <Link to="/login" className="btn btn--sm">
-              Login
+              Sign in <ArrowUpRight size={15} />
             </Link>
           )}
         </div>

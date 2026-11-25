@@ -1,6 +1,6 @@
-import { lazy, Suspense } from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "./context/AuthContext";
+import { lazy, Suspense, useEffect } from "react";
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from "react-router-dom";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import { VaultProvider } from "./context/VaultContext";
 import { Toaster } from "react-hot-toast";
 import Navbar from "./components/Navbar";
@@ -14,26 +14,40 @@ const Shuffle = lazy(() => import("./pages/Shuffle"));
 const Categories = lazy(() => import("./pages/Categories"));
 const Profile = lazy(() => import("./pages/Profile"));
 
+function RouteScroll() {
+    const { pathname } = useLocation();
+    useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+    return null;
+}
+
+function AccountPage({ children }) {
+    const { currentUser } = useAuth();
+    const location = useLocation();
+    return currentUser ? children : <Navigate to="/login" state={{ from: location.pathname }} replace />;
+}
+
 function App() {
     return (
         <AuthProvider>
             <VaultProvider>
                 <Router>
-                    <div>
+                    <div className="app-shell">
+                        <a className="skip-link" href="#main-content">Skip to content</a>
+                        <RouteScroll />
                         <Toaster
                             position="bottom-right"
                             toastOptions={{
                                 style: {
-                                    background: '#14141A',
-                                    color: '#F5F5F7',
-                                    border: '1px solid #33333F',
-                                    borderRadius: '10px',
-                                    fontSize: '0.9375rem'
+                                    background: '#202125',
+                                    color: '#f3f1eb',
+                                    border: '1px solid #42434a',
+                                    borderRadius: '12px',
+                                    fontSize: '13px'
                                 }
                             }}
                         />
                         <Navbar />
-                        <div className="main-content-layout">
+                        <main className="main-content-layout" id="main-content" tabIndex={-1}>
                             <Suspense fallback={
                                 <div className="loading-state">
                                     <div className="spinner" />
@@ -42,16 +56,17 @@ function App() {
                             }>
                                 <Routes>
                                     <Route path="/" element={<Home />} />
-                                    <Route path="/vault" element={<Vault />} />
+                                    <Route path="/vault" element={<AccountPage><Vault /></AccountPage>} />
                                     <Route path="/login" element={<Login />} />
-                                    <Route path="/recommendations" element={<Recommendations />} />
-                                    <Route path="/stats" element={<Stats />} />
+                                    <Route path="/recommendations" element={<AccountPage><Recommendations /></AccountPage>} />
+                                    <Route path="/stats" element={<AccountPage><Stats /></AccountPage>} />
                                     <Route path="/shuffle" element={<Shuffle />} />
                                     <Route path="/categories" element={<Categories />} />
-                                    <Route path="/profile" element={<Profile />} />
+                                    <Route path="/profile" element={<AccountPage><Profile /></AccountPage>} />
+                                    <Route path="*" element={<div className="page container"><div className="empty"><h1 className="empty-title">This story took a wrong turn.</h1><p className="empty-text">We couldn’t find that page. There’s plenty more to discover.</p><Link className="btn" to="/">Back to discovery</Link></div></div>} />
                                 </Routes>
                             </Suspense>
-                        </div>
+                        </main>
                 </div>
             </Router>
             </VaultProvider>

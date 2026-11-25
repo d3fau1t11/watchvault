@@ -1,123 +1,65 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, X } from "lucide-react";
+import { ArrowRight, Search, X } from "lucide-react";
 import { searchMedia } from "../services/tmdbApi";
+import { searchAnime, convertAnilistToTmdbFormat } from "../services/anilistApi";
 
-function SearchBar({ query, setQuery, onSearch }) {
+function SearchBar({ query, setQuery, onSearch, contentType = "all" }) {
     const [suggestions, setSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
+    const [activeIndex, setActiveIndex] = useState(-1);
     const wrapperRef = useRef(null);
 
-    // Close suggestions when clicking outside
     useEffect(() => {
-        function handleClickOutside(event) {
-            if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
-                setShowSuggestions(false);
-            }
-        }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
+        const outside = event => { if (!wrapperRef.current?.contains(event.target)) setShowSuggestions(false); };
+        document.addEventListener("mousedown", outside);
+        return () => document.removeEventListener("mousedown", outside);
     }, []);
 
-    // Debounced search for suggestions
     useEffect(() => {
-        const fetchSuggestions = async () => {
-            if (query.trim().length < 2) {
-                setSuggestions([]);
-                return;
-            }
+        let cancelled = false;
+        setSuggestions([]);
+        setActiveIndex(-1);
+        const timeout = setTimeout(async () => {
+            if (query.trim().length < 2) return;
             try {
-                const data = await searchMedia(query);
-                const filtered = data.results ? data.results.filter(item => item.media_type === 'movie' || item.media_type === 'tv').slice(0, 5) : [];
-                setSuggestions(filtered);
-            } catch (error) {
-                console.error("Failed to fetch suggestions", error);
-            }
-        };
+                const data = contentType === "anime" ? await searchAnime(query.trim(), 1, 5) : await searchMedia(query.trim(), 1, contentType === "movies" ? "movie" : contentType === "tv" ? "tv" : "all");
+                const matches = contentType === "anime" ? data.media.map(convertAnilistToTmdbFormat) : (data.results || []).filter(item => item.media_type === "movie" || item.media_type === "tv");
+                if (!cancelled) setSuggestions(matches.slice(0, 5));
+            } catch { if (!cancelled) setSuggestions([]); }
+        }, 300);
+        return () => { cancelled = true; clearTimeout(timeout); };
+    }, [query, contentType]);
 
-        const timeoutId = setTimeout(() => {
-            fetchSuggestions();
-        }, 300); // 300ms delay
-
-        return () => clearTimeout(timeoutId);
-    }, [query]);
-
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        if (query.trim()) {
-            setShowSuggestions(false);
-            onSearch(query);
-        }
-    };
-
-    const handleSuggestionClick = (title) => {
-        setQuery(title);
-        setShowSuggestions(false);
-        onSearch(title);
-    };
-
-    const handleClear = () => {
-        setQuery("");
-        setShowSuggestions(false);
-        onSearch("");
-    };
-
+    const choose = title => { setQuery(title); setShowSuggestions(false); setActiveIndex(-1); onSearch(title); };
+    const open = showSuggestions && suggestions.length > 0;
     return (
         <div ref={wrapperRef} className="search-wrap">
-            <form className="search-container" onSubmit={handleSubmit}>
-                <input
-                    type="text"
-                    className="search-input"
-                    placeholder="Search movies, TV series, or anime..."
-                    value={query}
-                    onChange={(e) => {
-                        setQuery(e.target.value);
-                        setShowSuggestions(true);
-                    }}
-                    onFocus={() => setShowSuggestions(true)}
-                />
-                {query && (
-                    <button
-                        type="button"
-                        className="search-clear"
-                        onClick={handleClear}
-                        title="Clear Search"
-                        aria-label="Clear search"
-                    >
-                        <X size={18} />
-                    </button>
-                )}
-                <button type="submit" className="btn search-btn" aria-label="Search">
-                    <Search size={20} />
-                </button>
+            <form className="search-container" role="search" onSubmit={event => { event.preventDefault(); choose(query.trim()); }}>
+                <Search size={19} className="search-leading-icon" aria-hidden="true" />
+                <input id="media-search" type="search" className="search-input" placeholder="Search movies, series, or anime…" value={query}
+                    aria-label="Search movies, series, or anime" role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls="search-suggestions"
+                    aria-activedescendant={open && activeIndex >= 0 ? `suggestion-${activeIndex}` : undefined}
+                    autoComplete="off" onChange={event => { setQuery(event.target.value); setShowSuggestions(true); }}
+                    onFocus={() => setShowSuggestions(true)} onKeyDown={event => {
+                        if (event.key === "Escape") { setShowSuggestions(false); setActiveIndex(-1); }
+                        if (open && event.key === "ArrowDown") { event.preventDefault(); setActiveIndex(index => (index + 1) % suggestions.length); }
+                        if (open && event.key === "ArrowUp") { event.preventDefault(); setActiveIndex(index => (index + suggestions.length - 1) % suggestions.length); }
+                        if (open && event.key === "Enter" && activeIndex >= 0) { event.preventDefault(); choose(suggestions[activeIndex].title || suggestions[activeIndex].name); }
+                    }} />
+                {query && <button type="button" className="search-clear" onClick={() => choose("")} aria-label="Clear search"><X size={17} /></button>}
+                <button type="submit" className="search-btn" aria-label="Search"><ArrowRight size={19} /></button>
             </form>
-
-            {showSuggestions && suggestions.length > 0 && (
-                <ul className="suggestions-dropdown">
-                    {suggestions.map((item) => {
-                        const title = item.title || item.name;
-                        const year = (item.release_date || item.first_air_date || "").substring(0, 4);
-                        const posterUrl = item.poster_path ? (item.poster_path.startsWith("http://") || item.poster_path.startsWith("https://") ? item.poster_path : `https://image.tmdb.org/t/p/w92${item.poster_path}`) : null;
-                        
-                        return (
-                            <li key={item.id} className="suggestion-item" onClick={() => handleSuggestionClick(title)}>
-                                {posterUrl ? (
-                                    <img src={posterUrl} alt={title} className="suggestion-poster" />
-                                ) : (
-                                    <div className="suggestion-no-poster">No img</div>
-                                )}
-                                <div className="suggestion-info">
-                                    <span className="suggestion-title">{title}</span>
-                                    <span className="suggestion-meta">
-                                        {item.media_type === "tv" ? "TV" : "Movie"} {year ? `• ${year}` : ''}
-                                    </span>
-                                </div>
-                            </li>
-                        );
-                    })}
-                </ul>
-            )}
+            {open && <ul className="suggestions-dropdown" id="search-suggestions" role="listbox" aria-label="Suggested titles">
+                {suggestions.map((item, index) => {
+                    const title = item.title || item.name;
+                    const poster = item.poster_path ? item.poster_path.startsWith("http") ? item.poster_path : `https://image.tmdb.org/t/p/w92${item.poster_path}` : null;
+                    return <li key={`${item.media_type}-${item.id}`} id={`suggestion-${index}`} role="option" aria-selected={index === activeIndex} className={`suggestion-item${index === activeIndex ? " suggestion-item--active" : ""}`} onMouseDown={event => event.preventDefault()} onClick={() => choose(title)}>
+                        {poster ? <img src={poster} alt="" className="suggestion-poster" /> : <span className="suggestion-no-poster"><Search size={17} /></span>}
+                        <span className="suggestion-info"><span className="suggestion-title">{title}</span><span className="suggestion-meta">{contentType === "anime" ? "Anime" : item.media_type === "tv" ? "TV series" : "Movie"} · {(item.release_date || item.first_air_date || "").slice(0, 4)}</span></span><ArrowRight size={15} />
+                    </li>;
+                })}
+            </ul>}
         </div>
     );
 }
-
 export default SearchBar;

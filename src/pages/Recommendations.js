@@ -7,7 +7,8 @@ import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import FilterTabs from "../components/FilterTabs";
 import EmptyState from "../components/EmptyState";
-import { Sparkles, Plus, Info, Star, ChevronDown } from "lucide-react";
+import { Sparkles, Plus, Info, ChevronDown } from "lucide-react";
+import StarRating from '../components/StarRating';
 
 const MediaModal = lazy(() => import("../components/MediaModal"));
 
@@ -168,7 +169,6 @@ function Recommendations() {
         <div className="tile-grid">
             {recs.map((rec) => {
                 const recTitle = rec.title || rec.name;
-                const rating = rec.vote_average ? Math.round(rec.vote_average * 10) / 10 : 'N/A';
                 const poster = rec.poster_path
                     ? (rec.poster_path.startsWith("http://") || rec.poster_path.startsWith("https://") ? rec.poster_path : `https://image.tmdb.org/t/p/w342${rec.poster_path}`)
                     : null;
@@ -179,6 +179,8 @@ function Recommendations() {
                         key={rec.id}
                         className="media-tile"
                         onClick={() => setSelectedMedia(rec)}
+                        role="button" tabIndex={0} aria-label={`Explore ${recTitle}`}
+                        onKeyDown={e => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setSelectedMedia(rec); } }}
                     >
                         {/* Poster Box */}
                         <div className="media-tile__poster-wrap">
@@ -195,7 +197,7 @@ function Recommendations() {
 
                             {/* Rating Badge */}
                             <div className="media-tile__rating">
-                                <Star size={12} fill="currentColor" /> {rating}
+                                <StarRating value={rec.vote_average} size={10} label="Community rating" />
                             </div>
 
                             {/* Media Type Label */}
@@ -252,11 +254,12 @@ function Recommendations() {
         <div className="page container">
             <div className="page-header">
                 <div className="page-heading">
+                    <span className="eyebrow">INSPIRED BY YOUR FAVORITES</span>
                     <h1 className="page-title">
-                        <Sparkles size={28} /> Discover Hub
+                        <Sparkles size={28} /> A little more you.
                     </h1>
                     <p className="page-subtitle">
-                        AI-powered watchlist recommendations tailored strictly to your unique media tastes.
+                        New stories to fall for, inspired by the movies and series in your vault.
                     </p>
                 </div>
             </div>

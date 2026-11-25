@@ -1,6 +1,7 @@
 import { Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { getMediaDetails } from "../services/tmdbApi";
+import { getSeriesDetails } from "../services/seriesService";
+import StarRating from './StarRating';
 
 const STATUS_MODIFIER = {
     "Plan to Watch": "pill--plan",
@@ -21,9 +22,8 @@ function VaultItem({ item, onUpdateStatus, onUpdateType, onRemove, onClick }) {
         const fetchSeasonCount = async () => {
             if ((item.type === "tv" || item.type === "anime") && item.tmdbId) {
                 try {
-                    const type = item.type === "anime" ? "tv" : item.type;
-                    const details = await getMediaDetails(item.tmdbId, type);
-                    if (details && details.number_of_seasons) {
+                    const details = await getSeriesDetails(item);
+                    if (details) {
                         setSeasonCount(details.number_of_seasons);
                     }
                 } catch (err) {
@@ -33,7 +33,7 @@ function VaultItem({ item, onUpdateStatus, onUpdateType, onRemove, onClick }) {
         };
 
         fetchSeasonCount();
-    }, [item.type, item.tmdbId, item.title]);
+    }, [item]);
 
     const posterUrl = item.poster
         ? (item.poster.startsWith("http://") || item.poster.startsWith("https://")
@@ -42,7 +42,7 @@ function VaultItem({ item, onUpdateStatus, onUpdateType, onRemove, onClick }) {
         : null;
 
     return (
-        <div className={`vault-item${onClick ? "" : " vault-item--static"}`} onClick={onClick}>
+        <div className={`vault-item${onClick ? "" : " vault-item--static"}`} onClick={onClick} tabIndex={onClick ? 0 : undefined} role={onClick ? "button" : undefined} aria-label={onClick ? `View details for ${item.title}` : undefined} onKeyDown={e => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onClick?.(); } }}>
             {posterUrl ? (
                 <img src={posterUrl} alt={item.title} className="vault-poster" loading="lazy" />
             ) : (
@@ -56,7 +56,7 @@ function VaultItem({ item, onUpdateStatus, onUpdateType, onRemove, onClick }) {
                             {STATUS_SHORT[item.status] || item.status}
                         </span>
                         {item.rating > 0 && (
-                            <span className="pill pill--star">★ {item.rating}</span>
+                            <span className="pill pill--star"><StarRating value={item.rating} label="My rating" /></span>
                         )}
                         {item.category && (
                             <span className="pill pill--category">{item.category}</span>
@@ -66,7 +66,7 @@ function VaultItem({ item, onUpdateStatus, onUpdateType, onRemove, onClick }) {
                     {/* Read-only season count for TV/Anime */}
                     {(item.type === "tv" || item.type === "anime") && seasonCount !== null && (
                         <span className="vault-season-count">
-                            {seasonCount === 1 ? "1 season" : `${seasonCount} seasons`}
+                            {seasonCount === 0 ? "No episodes available" : seasonCount === 1 ? "1 season" : `${seasonCount} seasons`}
                         </span>
                     )}
 
@@ -86,6 +86,7 @@ function VaultItem({ item, onUpdateStatus, onUpdateType, onRemove, onClick }) {
                         onClick={(e) => e.stopPropagation()}
                         onChange={(e) => onUpdateType(item.id, e.target.value)}
                         title="Media type"
+                        aria-label={`Media type for ${item.title}`}
                     >
                         <option value="movie">Movie</option>
                         <option value="tv">TV Series</option>
@@ -98,6 +99,7 @@ function VaultItem({ item, onUpdateStatus, onUpdateType, onRemove, onClick }) {
                         onClick={(e) => e.stopPropagation()}
                         onChange={(e) => onUpdateStatus(item.id, e.target.value)}
                         title="Watch status"
+                        aria-label={`Watch status for ${item.title}`}
                     >
                         <option value="Plan to Watch">Plan to Watch</option>
                         <option value="Watching">Watching</option>

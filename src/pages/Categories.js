@@ -3,28 +3,23 @@ import { useAuth } from "../context/AuthContext";
 import { useVault } from "../context/VaultContext";
 import { addToVault } from "../services/firestoreService";
 import { getMovieGenres, getTVGenres, discoverMedia } from "../services/tmdbApi";
-import { FolderOpen, Star, Plus, Info, Check, ChevronDown, RefreshCw } from "lucide-react";
+import { FolderOpen, Plus, Info, Check, ChevronDown, RefreshCw } from "lucide-react";
+import StarRating from '../components/StarRating';
 import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 
 const MediaModal = lazy(() => import("../components/MediaModal"));
 
 /* One solid hue per genre, used only as a 3px keyline on the tile.
    Enough to make the grid scannable without turning it into a paint chart. */
 const GENRE_ACCENTS = [
-    "#E50914", // Red
-    "#3B82F6", // Blue
-    "#22C55E", // Green
-    "#F5A524", // Amber
-    "#8B5CF6", // Purple
-    "#EC4899", // Pink
-    "#06B6D4", // Cyan
-    "#F97316", // Orange
-    "#6366F1", // Indigo
-    "#14B8A6"  // Teal
+    "#dfbb74", "#91aee8", "#7bbca1", "#cf9d82", "#b09bd4",
+    "#d6a0b6", "#80b7bf", "#c8c18f", "#9d9aca", "#8ec3ae"
 ];
 
 function Categories() {
     const { currentUser } = useAuth();
+    const navigate = useNavigate();
     const { isInVault } = useVault();
     const [mediaType, setMediaType] = useState("movie"); // movie or tv
     const [genres, setGenres] = useState([]);
@@ -104,6 +99,7 @@ function Categories() {
     };
 
     const handleAddGenreItemToVault = async (item) => {
+        if (!currentUser) { navigate("/login"); return; }
         const loadingToast = toast.loading(`Adding "${item.title || item.name}" to Vault...`);
         const status = "Plan to Watch";
 
@@ -133,9 +129,11 @@ function Categories() {
         <div className="page container">
             <div className="page-header">
                 <div className="page-heading">
+                    <span className="eyebrow">FOLLOW YOUR MOOD</span>
                     <h1 className="page-title">
-                        <FolderOpen size={28} /> Categories
+                        <FolderOpen size={28} /> A genre for every mood.
                     </h1>
+                    <p className="page-subtitle">Big adventures, quiet dramas, and everything in between. Find your kind of story.</p>
                 </div>
 
                 {/* Media Type Selector */}
@@ -197,7 +195,6 @@ function Categories() {
                                 <>
                                     <div className="tile-grid">
                                         {titles.map((item) => {
-                                            const rating = item.vote_average ? Math.round(item.vote_average * 10) / 10 : 'N/A';
                                             const poster = item.poster_path ? `https://image.tmdb.org/t/p/w342${item.poster_path}` : null;
                                             const itemAdded = item.isAdded || isInVault(item.id);
                                             const itemTitle = item.title || item.name;
@@ -206,6 +203,8 @@ function Categories() {
                                                 <div
                                                     key={item.id}
                                                     className="media-tile"
+                                                    role="button" tabIndex={0} aria-label={`Explore ${itemTitle}`}
+                                                    onKeyDown={e => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setSelectedMedia(item); } }}
                                                     onClick={() => setSelectedMedia(item)}
                                                 >
                                                     <div className="media-tile__poster-wrap">
@@ -222,7 +221,7 @@ function Categories() {
 
                                                         {/* Rating Badge */}
                                                         <div className="media-tile__rating">
-                                                            <Star size={12} fill="currentColor" /> {rating}
+                                                            <StarRating value={item.vote_average} size={10} label="Community rating" />
                                                         </div>
                                                     </div>
 

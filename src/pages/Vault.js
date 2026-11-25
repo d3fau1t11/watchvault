@@ -1,8 +1,11 @@
 import { useState, useEffect, useMemo, useRef, lazy, Suspense } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useVault } from "../context/VaultContext";
-import { updateVaultItemStatus, updateVaultItemType, removeVaultItem, addToVault, clearVault } from "../services/firestoreService";
-import { searchMedia, getTVDetailsWithAiring } from "../services/tmdbApi";
+import { updateVaultItemStatus, updateVaultItemType, updateVaultItemDetails, removeVaultItem, addToVault, clearVault } from "../services/firestoreService";
+import { searchMedia, getMediaDetails } from "../services/tmdbApi";
+import { getSeriesDetails } from "../services/seriesService";
+import { getAnimeById, convertAnilistToTmdbFormat } from "../services/anilistApi";
+import { createVaultExport, importedCuration } from "../utils/vaultTransfer";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import VaultItem from "../components/VaultItem";
@@ -24,9 +27,12 @@ function Vault() {
     const [yearFilter, setYearFilter] = useState("all");
     const [typeFilter, setTypeFilter] = useState("all");
     const [searchQuery, setSearchQuery] = useState("");
+    const [statusFilter, setStatusFilter] = useState("all");
+    const [sortBy, setSortBy] = useState("newest");
 
     // Fetch airing this week data & run background auto-completion for existing items
     useEffect(() => {
+        let cancelled = false;
         const fetchAiringThisWeek = async () => {
             if (!currentUser || vaultItems.length === 0) {
                 setAiringThisWeek([]);
@@ -49,23 +55,8 @@ function Vault() {
 
             for (const show of tvShows) {
                 try {
-                    const details = await getTVDetailsWithAiring(show.tmdbId);
-
-                    const isEndedOrCanceled = details?.status === 'Ended' || details?.status === 'Canceled';
-                    const nonZeroSeasons = details?.seasons?.filter(s => s.season_number > 0) || [];
-                    const lastSeasonObj = nonZeroSeasons[nonZeroSeasons.length - 1];
-
-                    if (isEndedOrCanceled && lastSeasonObj) {
-                        const userSeason = show.season || 1;
-                        const userEpisode = show.episode || 0;
-                        const isCompleted = (userSeason > lastSeasonObj.season_number) ||
-                            (userSeason === lastSeasonObj.season_number && userEpisode >= lastSeasonObj.episode_count);
-                        if (isCompleted) {
-                            await updateVaultItemStatus(show.id, 'Completed');
-                            toast.success(`"${show.title}" automatically marked as Completed!`);
-                            continue;
-                        }
-                    }
+                    const details = await getSeriesDetails(show);
+                    if (cancelled) return;
 
                     if (show.status === 'Watching' && details?.next_episode_to_air) {
                         const nextAirDate = new Date(details.next_episode_to_air.air_date);
@@ -81,10 +72,11 @@ function Vault() {
                 }
             }
 
-            setAiringThisWeek(airingShows);
+            if (!cancelled) setAiringThisWeek(airingShows);
         };
 
         fetchAiringThisWeek();
+        return () => { cancelled = true; };
     }, [currentUser, vaultItems]);
 
     useEffect(() => {
@@ -108,7 +100,7 @@ function Vault() {
     }, [vaultItems]);
 
     const handleUpdateStatus = async (id, newStatus) => {
-        const response = await updateVaultItemStatus(id, newStatus);
+        const response = await updateVaultItemStatus(id, newStatus, { manual: true });
         if (response.success) {
             toast.success("Status updated!");
         } else {
@@ -210,25 +202,53 @@ function Vault() {
                 const loadingToast = toast.loading(`Importing 0 / ${itemsToImport.length}...`);
 
                 let successCount = 0;
+                let skippedCount = 0;
+                let failedCount = 0;
+                const importedIds = new Set(vaultItems.map(item => item.tmdbId));
 
                 for (let i = 0; i < itemsToImport.length; i++) {
                     const item = itemsToImport[i];
-                    if (item.title) {
+                    if (typeof item.title === 'string' && item.title.trim()) {
                         try {
-                            const searchResult = await searchMedia(item.title, 1);
-                            const topResult = searchResult.results?.filter(r => r.media_type === 'movie' || r.media_type === 'tv')[0];
-                            if (topResult) {
-                                await addToVault(currentUser.uid, topResult, "Plan to Watch");
-                                successCount++;
+                            if (item.tmdbId && importedIds.has(item.tmdbId)) { skippedCount++; continue; }
+                            let media;
+                            if (Number.isInteger(item.tmdbId) && ['movie', 'tv', 'anime'].includes(item.type)) {
+                                if (item.poster) {
+                                    media = { id: item.tmdbId, title: item.title, type: item.type, media_type: item.type === 'anime' ? 'tv' : item.type, poster_path: item.poster, genres: Array.isArray(item.genres) ? item.genres : [], ...(typeof item.category === 'string' ? { category: item.category } : {}), release_date: item.year ? `${item.year}-01-01` : null };
+                                } else if (item.type === 'anime') {
+                                    media = convertAnilistToTmdbFormat(await getAnimeById(item.tmdbId));
+                                } else {
+                                    media = { ...await getMediaDetails(item.tmdbId, item.type), type: item.type, media_type: item.type };
+                                }
+                            } else {
+                                const searchResult = await searchMedia(item.title, 1);
+                                const matches = searchResult.results?.filter(r => r.media_type === 'movie' || r.media_type === 'tv') || [];
+                                media = matches.find(r => (r.title || r.name)?.toLowerCase() === item.title.toLowerCase()) || matches[0];
                             }
+                            if (media && !importedIds.has(media.id)) {
+                                const status = ['Plan to Watch', 'Watching', 'Completed'].includes(item.status) ? item.status : 'Plan to Watch';
+                                const response = await addToVault(currentUser.uid, media, status);
+                                if (!response.success) throw new Error(response.error);
+                                importedIds.add(media.id);
+                                const details = importedCuration(item);
+                                if (Object.keys(details).length) {
+                                    const restored = await updateVaultItemDetails(response.id, details);
+                                    if (!restored.success) throw new Error(restored.error);
+                                }
+                                successCount++;
+                            } else if (media) skippedCount++;
+                            else failedCount++;
                         } catch (err) {
+                            failedCount++;
                             console.error("Failed to import", item.title, err);
                         }
-                    }
+                    } else failedCount++;
                     toast.loading(`Importing ${i + 1} / ${itemsToImport.length}...`, { id: loadingToast });
                 }
 
-                toast.success(`Import complete! Added ${successCount} items.`, { id: loadingToast });
+                const summary = `Imported ${successCount} titles. ${skippedCount ? `${skippedCount} already saved. ` : ''}${failedCount ? `${failedCount} could not be fully restored.` : ''}`;
+                if (failedCount) toast.error(summary, { id: loadingToast });
+                else toast.success(summary, { id: loadingToast });
             } catch (error) {
                 toast.error("Failed to parse JSON file.");
             }
@@ -242,18 +262,7 @@ function Vault() {
             toast.error("Nothing to export!");
             return;
         }
-        const exportData = {
-            exportedAt: new Date().toISOString(),
-            total: vaultItems.length,
-            items: vaultItems.map(item => ({
-                title: item.title,
-                type: item.type,
-                status: item.status,
-                tmdbId: item.tmdbId,
-                year: item.year,
-                addedAt: item.createdAt?.toDate ? item.createdAt.toDate().toISOString() : null
-            }))
-        };
+        const exportData = createVaultExport(vaultItems);
 
         const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
         const url = URL.createObjectURL(blob);
@@ -269,6 +278,7 @@ function Vault() {
 
     const filteredAndSortedItems = useMemo(() => {
         let result = [...vaultItems];
+        if (statusFilter !== "all") result = result.filter(item => item.status === statusFilter);
 
         // Search Query Filter
         if (searchQuery.trim() !== "") {
@@ -289,11 +299,14 @@ function Vault() {
 
         // Sort by date descending (newest first)
         result.sort((a, b) => {
+            if (sortBy === "title") return (a.title || "").localeCompare(b.title || "");
+            if (sortBy === "rating") return (b.rating || 0) - (a.rating || 0);
+            if (sortBy === "updated") return (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0);
             return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
         });
 
         return result;
-    }, [vaultItems, searchQuery, typeFilter, yearFilter]);
+    }, [vaultItems, searchQuery, typeFilter, yearFilter, statusFilter, sortBy]);
 
     if (vaultLoading) {
         return (
@@ -310,7 +323,8 @@ function Vault() {
         <div className="page container">
             <div className="page-header">
                 <div className="page-heading">
-                    <h1 className="page-title">The Vault</h1>
+                    <span className="eyebrow">YOUR PERSONAL COLLECTION</span>
+                    <h1 className="page-title">My Vault<span className="accent-text">.</span></h1>
                     <p className="page-subtitle">
                         {vaultItems.length === 1
                             ? "1 title saved"
@@ -322,6 +336,7 @@ function Vault() {
                     <input
                         type="file"
                         accept=".json"
+                        aria-label="Import vault backup"
                         ref={fileInputRef}
                         style={{ display: 'none' }}
                         onChange={handleFileUpload}
@@ -354,6 +369,7 @@ function Vault() {
                     type="text"
                     className="input"
                     placeholder="Search in your vault..."
+                    aria-label="Search in your vault"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -362,6 +378,15 @@ function Vault() {
 
             {/* Type & Year Filter Bar */}
             <div className="filter-bar">
+                <div className="filter-group">
+                    <label className="filter-label" htmlFor="vault-status">Status</label>
+                    <select className="select" id="vault-status" value={statusFilter} onChange={event => setStatusFilter(event.target.value)}>
+                        <option value="all">All statuses</option>
+                        <option value="Watching">Watching</option>
+                        <option value="Plan to Watch">Plan to Watch</option>
+                        <option value="Completed">Completed</option>
+                    </select>
+                </div>
                 <div className="filter-group">
                     <span className="filter-label">Type</span>
                     <div className="chip-group">
@@ -398,6 +423,7 @@ function Vault() {
                         </select>
                     </div>
                 )}
+                <div className="filter-group"><label className="filter-label" htmlFor="vault-sort">Sort</label><select className="select" id="vault-sort" value={sortBy} onChange={e => setSortBy(e.target.value)}><option value="newest">Recently added</option><option value="updated">Recently updated</option><option value="title">Title A–Z</option><option value="rating">My rating</option></select></div>
             </div>
 
             {/* Airing This Week Section */}

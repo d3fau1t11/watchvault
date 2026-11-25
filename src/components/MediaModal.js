@@ -10,6 +10,10 @@ import { X, Star, Plus, Check, ArrowLeft, Calendar, Trash2, PlayCircle } from "l
 import YouTube from "react-youtube";
 import { STANDARD_CATEGORIES } from "../utils/categories";
 import { shouldAutoComplete } from "../utils/autoComplete";
+import { normalizeSeries, playableSeasons, playableEpisodes } from '../utils/series';
+import { verifySeriesDetails } from '../services/seriesService';
+import StarRating from './StarRating';
+import WatchStatusControl from './WatchStatusControl';
 
 function MediaModal({ media, onClose }) {
     const [mediaHistory, setMediaHistory] = useState([media]);
@@ -20,6 +24,8 @@ function MediaModal({ media, onClose }) {
     const [error, setError] = useState(null);
     const [selectedSeason, setSelectedSeason] = useState(null);
     const [seasonEpisodes, setSeasonEpisodes] = useState([]);
+    const [episodesLoading, setEpisodesLoading] = useState(false);
+    const [episodesError, setEpisodesError] = useState(false);
     const [isOverviewExpanded, setIsOverviewExpanded] = useState(false);
     const [showLightbox, setShowLightbox] = useState(false);
     const [watchProviders, setWatchProviders] = useState(null);
@@ -44,11 +50,34 @@ function MediaModal({ media, onClose }) {
        instead of scrolling underneath the backdrop. */
     useEffect(() => {
         const previousOverflow = document.body.style.overflow;
+        const previousFocus = document.activeElement;
         document.body.style.overflow = "hidden";
+        modalContentRef.current?.querySelector('[aria-label="Close"]')?.focus();
         return () => {
             document.body.style.overflow = previousOverflow;
+            previousFocus?.focus?.();
         };
     }, []);
+
+    useEffect(() => {
+        const handleKey = event => {
+            if (event.key === "Escape") {
+                event.preventDefault();
+                if (showTrailerLightbox) setShowTrailerLightbox(false);
+                else if (showLightbox) setShowLightbox(false);
+                else onClose();
+            }
+            if (event.key === "Tab") {
+                const root = showTrailerLightbox || showLightbox ? modalContentRef.current?.querySelector('.lightbox-overlay') : modalContentRef.current;
+                const focusable = Array.from(root?.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]') || []).filter(element => element.getClientRects().length > 0);
+                const first = focusable[0], last = focusable[focusable.length - 1];
+                if (event.shiftKey && (document.activeElement === first || !root?.contains(document.activeElement))) { event.preventDefault(); last?.focus(); }
+                else if (!event.shiftKey && (document.activeElement === last || !root?.contains(document.activeElement))) { event.preventDefault(); first?.focus(); }
+            }
+        };
+        document.addEventListener("keydown", handleKey);
+        return () => document.removeEventListener("keydown", handleKey);
+    }, [onClose, showLightbox, showTrailerLightbox]);
 
     useEffect(() => {
         const vaultId = currentVaultItem ? currentVaultItem.id : null;
@@ -114,6 +143,7 @@ function MediaModal({ media, onClose }) {
     }, [media]);
 
     useEffect(() => {
+        let cancelled = false;
         const fetchDetails = async () => {
             setLoading(true);
             setDetails(null);
@@ -130,11 +160,12 @@ function MediaModal({ media, onClose }) {
             try {
                 if (currentMedia.media_type === 'person' || currentMedia.type === 'person') {
                     const data = await getPersonDetails(currentMedia.id);
-                    setDetails(data);
+                    if (!cancelled) setDetails(data);
                 } else if (currentMedia.media_type === 'movie' || currentMedia.media_type === 'tv' || currentMedia.type === 'movie' || currentMedia.type === 'tv' || currentMedia.type === 'anime') {
                     let type = currentMedia.type === 'anime' || currentMedia.media_type === 'anime' ? 'anime' : (currentMedia.media_type || currentMedia.type);
                     if (type === 'anime') {
                         const anilistData = await getAnimeById(currentMedia.tmdbId || currentMedia.id);
+                        if (cancelled) return;
                         if (anilistData) {
                             const formattedGenres = anilistData.genres?.map((g, idx) => ({ id: idx, name: g })) || [];
                             const formattedDetails = {
@@ -148,12 +179,12 @@ function MediaModal({ media, onClose }) {
                                 status: anilistData.status,
                                 genres: formattedGenres,
                                 number_of_seasons: 1,
-                                number_of_episodes: anilistData.episodes || 12,
+                                number_of_episodes: anilistData.episodes || 0,
                                 seasons: [
                                     {
                                         season_number: 1,
                                         name: "Season 1",
-                                        episode_count: anilistData.episodes || 12
+                                        episode_count: anilistData.episodes || 0
                                     }
                                 ],
                                 next_episode_to_air: anilistData.nextAiringEpisode ? {
@@ -165,22 +196,26 @@ function MediaModal({ media, onClose }) {
                                 episodes: anilistData.episodes,
                                 streamingEpisodes: anilistData.streamingEpisodes
                             };
-                            setDetails(formattedDetails);
-                            setSelectedSeason(1);
+                            const validDetails = normalizeSeries(formattedDetails);
+                            setDetails(validDetails);
+                            setSelectedSeason(validDetails.seasons.length ? 1 : null);
                         } else {
                             throw new Error("Failed to load AniList details");
                         }
                     } else {
-                        const data = await getMediaDetails(currentMedia.tmdbId || currentMedia.id, type);
+                        const rawData = await getMediaDetails(currentMedia.tmdbId || currentMedia.id, type);
+                        const data = type === 'tv' ? await verifySeriesDetails(currentMedia, rawData, { strict: false }) : rawData;
+                        if (cancelled) return;
                         setDetails(data);
                         
                         // Fetch watch providers
                         const providers = await getWatchProviders(currentMedia.tmdbId || currentMedia.id, type);
+                        if (cancelled) return;
                         setWatchProviders(providers);
                         
                         if ((type === 'tv') && data.seasons && data.seasons.length > 0) {
-                            const nonZeroSeasons = data.seasons.filter(s => s.season_number > 0);
-                            const defaultSeason = nonZeroSeasons.length > 0 ? nonZeroSeasons[0].season_number : data.seasons[0].season_number;
+                            const nonZeroSeasons = playableSeasons(data);
+                            const defaultSeason = nonZeroSeasons[0]?.season_number ?? null;
                             setSelectedSeason(defaultSeason);
                         } else {
                             setSelectedSeason(null);
@@ -188,20 +223,27 @@ function MediaModal({ media, onClose }) {
                     }
                 }
             } catch (e) {
+                if (cancelled) return;
                 console.error("Failed to fetch details", e);
                 setError("Failed to retrieve details. Please check your internet connection.");
             }
-            setLoading(false);
+            if (!cancelled) setLoading(false);
         };
         fetchDetails();
+        return () => { cancelled = true; };
     }, [currentMedia]);
 
     useEffect(() => {
+        let cancelled = false;
         const fetchSeason = async () => {
+            setSeasonEpisodes([]);
+            setEpisodesLoading(true);
+            setEpisodesError(false);
+            try {
             if (selectedSeason !== null && details && (details.id || currentMedia.tmdbId || currentMedia.id)) {
                 let type = currentMedia.type === 'anime' || currentMedia.media_type === 'anime' ? 'anime' : (currentMedia.media_type || currentMedia.type);
                 if (type === 'anime') {
-                    const episodesCount = details.episodes || 12;
+                    const episodesCount = details.episodes || 0;
                     const mockEpisodes = [];
                     for (let i = 1; i <= episodesCount; i++) {
                         const stream = details.streamingEpisodes?.find(s => s.title.toLowerCase().includes(`episode ${i}`) || s.title.endsWith(` ${i}`));
@@ -213,21 +255,24 @@ function MediaModal({ media, onClose }) {
                             overview: stream ? `Watch on streaming services. Link: ${stream.url}` : ""
                         });
                     }
-                    setSeasonEpisodes(mockEpisodes);
+                    if (!cancelled) setSeasonEpisodes(mockEpisodes);
                 } else {
                     const tvId = details.id || currentMedia.tmdbId || currentMedia.id;
                     const data = await getSeasonDetails(tvId, selectedSeason);
                     if (data && data.episodes) {
-                        setSeasonEpisodes(data.episodes);
+                        if (!cancelled) setSeasonEpisodes(playableEpisodes(data.episodes));
                     } else {
-                        setSeasonEpisodes([]);
+                        if (!cancelled) { setSeasonEpisodes([]); setEpisodesError(true); }
                     }
                 }
             } else {
-                setSeasonEpisodes([]);
+                if (!cancelled) setSeasonEpisodes([]);
             }
+            } catch { if (!cancelled) { setSeasonEpisodes([]); setEpisodesError(true); } }
+            finally { if (!cancelled) setEpisodesLoading(false); }
         };
         fetchSeason();
+        return () => { cancelled = true; };
     }, [selectedSeason, details, currentMedia.id, currentMedia.tmdbId, currentMedia.media_type, currentMedia.type]);
 
     if (!currentMedia) return null;
@@ -237,7 +282,7 @@ function MediaModal({ media, onClose }) {
     const title = isPerson ? (details?.name || currentMedia.name) : (details?.title || details?.name || currentMedia.title || currentMedia.name);
     const overview = isPerson ? (details?.biography || "No biography available.") : (details?.overview || currentMedia.overview);
     const year = isPerson ? null : (details?.release_date || details?.first_air_date || currentMedia.release_date || currentMedia.first_air_date || "").substring(0, 4);
-    const rating = isPerson ? null : (details?.vote_average?.toFixed(1) || currentMedia.vote_average?.toFixed(1));
+    const rating = isPerson ? null : (details?.vote_average ?? currentMedia.vote_average);
     const language = isPerson ? null : (details?.spoken_languages?.[0]?.english_name || currentMedia.original_language?.toUpperCase() || details?.original_language?.toUpperCase());
     const status = isPerson ? null : details?.status;
     const rawBackdrop = details?.backdrop_path || currentMedia.backdrop_path;
@@ -352,7 +397,7 @@ function MediaModal({ media, onClose }) {
 
     return (
         <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content" onClick={e => e.stopPropagation()} ref={modalContentRef}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} ref={modalContentRef} role="dialog" aria-modal="true" aria-label={title || "Title details"}>
                 
                 {/* Navigation Buttons */}
                 <div className="modal-nav">
@@ -399,6 +444,10 @@ function MediaModal({ media, onClose }) {
                                 alt={title}
                                 className="modal-poster modal-poster--zoomable"
                                 onClick={() => setShowLightbox(true)}
+                                role="button"
+                                tabIndex={0}
+                                aria-label="View full poster"
+                                onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowLightbox(true); } }}
                                 title="Click to view full image"
                             />
                         ) : (
@@ -443,7 +492,7 @@ function MediaModal({ media, onClose }) {
                                     <>
                                         <span className="modal-meta__sep">•</span>
                                         <span className="modal-meta__rating">
-                                            <Star size={14} fill="currentColor" /> {rating}
+                                            <StarRating value={rating} label="Community rating" />
                                         </span>
                                     </>
                                 )}
@@ -486,6 +535,10 @@ function MediaModal({ media, onClose }) {
                                         </button>
                                     )}
                                 </div>
+                            )}
+
+                            {!isPerson && currentUser && isCurrentInVault && currentVaultItem && (
+                                <WatchStatusControl key={currentVaultItem.id} item={currentVaultItem} />
                             )}
 
                             {!isPerson && details?.genres && (
@@ -551,23 +604,23 @@ function MediaModal({ media, onClose }) {
                                         {overview && overview.length > 250 && !isOverviewExpanded ? (
                                             <>
                                                 {overview.substring(0, 250)}...
-                                                <span
+                                                <button type="button"
                                                     onClick={() => setIsOverviewExpanded(true)}
                                                     className="modal-overview__toggle"
                                                 >
                                                     more
-                                                </span>
+                                                </button>
                                             </>
                                         ) : (
                                             <>
                                                 {overview}
                                                 {overview && overview.length > 250 && isOverviewExpanded && (
-                                                    <span
+                                                    <button type="button"
                                                         onClick={() => setIsOverviewExpanded(false)}
                                                         className="modal-overview__toggle"
                                                     >
                                                         less
-                                                    </span>
+                                                    </button>
                                                 )}
                                             </>
                                         )}
@@ -579,6 +632,7 @@ function MediaModal({ media, onClose }) {
 
                     {/* Bottom Section: Full Width Details */}
                     <div className="modal-bottom-section">
+                        {isTV && !loading && details && playableSeasons(details).length === 0 && <div className="state-note">No episodes are available for this title yet. Empty seasons are excluded from tracking.</div>}
                         {isCurrentInVault && currentVaultItem && (
                             <div className="modal-curation-section">
                                 <h3 className="curation-title">
@@ -591,19 +645,8 @@ function MediaModal({ media, onClose }) {
                                         My Personal Rating
                                     </label>
                                     <div className="rating-row">
-                                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((starValue) => (
-                                            <Star
-                                                key={starValue}
-                                                size={22}
-                                                className={`rating-star${starValue <= myRating ? ' rating-star--on' : ''}`}
-                                                onClick={() => setMyRating(starValue)}
-                                            />
-                                        ))}
-                                        {myRating > 0 && (
-                                            <span className="rating-value">
-                                                {myRating}/10
-                                            </span>
-                                        )}
+                                        <StarRating value={myRating} onChange={setMyRating} size={28} label="My personal rating" />
+                                        {myRating > 0 && <button type="button" className="btn btn--ghost btn--icon" aria-label="Clear rating" onClick={() => setMyRating(0)}><X size={16} /></button>}
                                     </div>
                                 </div>
 
@@ -615,6 +658,7 @@ function MediaModal({ media, onClose }) {
                                     <div className="field-row">
                                         <select
                                             className="select"
+                                            aria-label="Category classification"
                                             value={myCategory}
                                             onChange={(e) => {
                                                 setMyCategory(e.target.value);
@@ -634,6 +678,7 @@ function MediaModal({ media, onClose }) {
                                                 type="text"
                                                 className="input"
                                                 placeholder="Enter custom category"
+                                                aria-label="Custom category"
                                                 value={customCategoryInput}
                                                 onChange={(e) => setCustomCategoryInput(e.target.value)}
                                             />
@@ -672,6 +717,7 @@ function MediaModal({ media, onClose }) {
                                             type="text"
                                             className="input"
                                             placeholder="Add custom tag (e.g. favorites)"
+                                            aria-label="Add a custom tag"
                                             value={newTagInput}
                                             onChange={(e) => setNewTagInput(e.target.value)}
                                         />
@@ -689,6 +735,7 @@ function MediaModal({ media, onClose }) {
                                         </label>
                                         <textarea
                                             className="textarea"
+                                            aria-label="Private notes"
                                             value={myNotes}
                                             onChange={(e) => setMyNotes(e.target.value)}
                                             placeholder="Enter private notes..."
@@ -702,6 +749,7 @@ function MediaModal({ media, onClose }) {
                                         </label>
                                         <textarea
                                             className="textarea"
+                                            aria-label="Written review"
                                             value={myReview}
                                             onChange={(e) => setMyReview(e.target.value)}
                                             placeholder="Write your review here..."
@@ -723,10 +771,10 @@ function MediaModal({ media, onClose }) {
                                     <select
                                         className="select"
                                         value={selectedSeason || ""}
-                                        onChange={(e) => setSelectedSeason(Number(e.target.value))}
+                                        onChange={(e) => { setSeasonEpisodes([]); setSelectedSeason(Number(e.target.value)); }}
                                         aria-label="Select season"
                                     >
-                                        {details.seasons.filter(s => s.season_number > 0).map(s => (
+                                        {playableSeasons(details).map(s => (
                                             <option key={s.season_number} value={s.season_number}>
                                                 {s.name || `Season ${s.season_number}`}
                                             </option>
@@ -736,7 +784,7 @@ function MediaModal({ media, onClose }) {
 
                                 <div className="episode-list">
                                     {seasonEpisodes.length === 0 ? (
-                                        <div className="state-note">Loading episodes…</div>
+                                        <div className="state-note">{episodesLoading ? 'Loading episodes…' : episodesError ? 'Could not load episodes. Please reopen this title to try again.' : 'No episodes available in this season.'}</div>
                                     ) : (
                                         seasonEpisodes.map(ep => {
                                             const currentVaultItem = getVaultItem(currentMedia.tmdbId || currentMedia.id);
@@ -754,6 +802,7 @@ function MediaModal({ media, onClose }) {
 
                                             const handleEpisodeClick = async (e) => {
                                                 e.stopPropagation();
+                                                if (episodesLoading) return;
                                                 if (!currentUser) {
                                                     toast.error("Please login to track progress.");
                                                     return;
@@ -770,7 +819,7 @@ function MediaModal({ media, onClose }) {
                                                     toast.success(`Progress saved: S${selectedSeason} E${ep.episode_number}`, { id: loadingToast });
                                                     
                                                     // Auto-complete if all seasons/episodes are watched (regardless of TMDB Ended status)
-                                                    if (shouldAutoComplete(currentVaultItem, details)) {
+                                                    if (shouldAutoComplete({ ...currentVaultItem, season: selectedSeason, episode: ep.episode_number }, details)) {
                                                         if (currentVaultItem.status !== 'Completed') {
                                                             await updateVaultItemStatus(currentVaultItem.id, 'Completed');
                                                             toast.success(`${details.name || details.title} automatically marked as Completed!`);
@@ -785,6 +834,10 @@ function MediaModal({ media, onClose }) {
                                                 <div
                                                     key={ep.id}
                                                     onClick={handleEpisodeClick}
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    aria-label={`Mark episode ${ep.episode_number} watched: ${ep.name}`}
+                                                    onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleEpisodeClick(e); } }}
                                                     className={`episode-card-row${isWatched ? ' episode-card-row--watched' : ''}${(isCurrentInVault && currentVaultItem) ? ' episode-card-row--clickable' : ''}`}
                                                 >
                                                     {ep.still_path ? (
@@ -826,6 +879,8 @@ function MediaModal({ media, onClose }) {
                                             key={actor.id} 
                                             className="cast-item" 
                                             onClick={() => handleActorClick(actor)}
+                                            role="button" tabIndex={0} aria-label={`View ${actor.name}`}
+                                            onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleActorClick(actor); } }}
                                         >
                                             {actor.profile_path ? (
                                                 <img 
@@ -851,7 +906,7 @@ function MediaModal({ media, onClose }) {
                                 <div className="trailer-container">
                                     <YouTube 
                                         videoId={trailer.key} 
-                                        opts={{ width: '100%', height: '100%', playerVars: { origin: 'http://localhost:3000' } }} 
+                                        opts={{ width: '100%', height: '100%', playerVars: { origin: window.location.origin } }}
                                     />
                                 </div>
                             </div>
@@ -866,6 +921,8 @@ function MediaModal({ media, onClose }) {
                                             key={rec.id} 
                                             className="recommendation-card"
                                             onClick={() => handleRecommendationClick(rec)}
+                                            role="button" tabIndex={0} aria-label={`Explore ${rec.title || rec.name}`}
+                                            onKeyDown={e => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); handleRecommendationClick(rec); } }}
                                         >
                                             <div className="recommendation-poster-wrapper">
                                                 {rec.poster_path ? (
@@ -910,6 +967,8 @@ function MediaModal({ media, onClose }) {
                                             key={`${rec.id}-${rec.media_type}`} 
                                             className="recommendation-card"
                                             onClick={() => handleRecommendationClick(rec)}
+                                            role="button" tabIndex={0} aria-label={`Explore ${rec.title || rec.name}`}
+                                            onKeyDown={e => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); handleRecommendationClick(rec); } }}
                                         >
                                             <div className="recommendation-poster-wrapper">
                                                 {rec.poster_path ? (

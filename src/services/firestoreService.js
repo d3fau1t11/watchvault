@@ -109,11 +109,13 @@ export const getVaultItems = async (userId) => {
     }
 };
 
-export const updateVaultItemStatus = async (itemId, newStatus) => {
+export const updateVaultItemStatus = async (itemId, newStatus, { manual = false } = {}) => {
     try {
         const itemRef = doc(db, COLLECTION_NAME, itemId);
         await updateDoc(itemRef, {
-            status: newStatus
+            status: newStatus,
+            manualStatus: manual,
+            updatedAt: serverTimestamp()
         });
         return { success: true };
     } catch (error) {
@@ -141,6 +143,7 @@ export const updateVaultItemProgress = async (itemId, season, episode) => {
         await updateDoc(itemRef, {
             season,
             episode,
+            manualStatus: false,
             updatedAt: serverTimestamp()
         });
         return { success: true };

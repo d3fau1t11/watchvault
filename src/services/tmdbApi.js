@@ -1,3 +1,5 @@
+import { normalizeSeries, playableEpisodes } from '../utils/series';
+
 const API_KEY = process.env.REACT_APP_TMDB_API_KEY;
 const BASE_URL = "https://api.themoviedb.org/3";
 
@@ -34,7 +36,7 @@ const fetchWithCacheSilent = async (url) => {
 export const searchMedia = async (query, page = 1, type = "all") => {
     const endpoint = type === "movie" ? "movie" : type === "tv" ? "tv" : "multi";
     const data = await fetchWithCache(
-        `${BASE_URL}/search/${endpoint}?api_key=${API_KEY}&query=${query}&page=${page}`
+        `${BASE_URL}/search/${endpoint}?api_key=${API_KEY}&query=${encodeURIComponent(query)}&page=${page}`
     );
     if (data && data.results && (type === "movie" || type === "tv")) {
         data.results = data.results.map(item => ({ ...item, media_type: type }));
@@ -55,9 +57,10 @@ export const getTrending = async (page = 1, type = "all") => {
 
 export const getMediaDetails = async (id, type) => {
     // type must be 'movie' or 'tv'
-    return fetchWithCache(
+    const details = await fetchWithCache(
         `${BASE_URL}/${type}/${id}?api_key=${API_KEY}&append_to_response=videos,credits,recommendations`
     );
+    return type === 'tv' ? normalizeSeries(details) : details;
 };
 
 export const getPersonDetails = async (id) => {
@@ -73,9 +76,10 @@ export const getEpisodeDetails = async (tvId, seasonNumber, episodeNumber) => {
 };
 
 export const getSeasonDetails = async (tvId, seasonNumber) => {
-    return fetchWithCacheSilent(
+    const details = await fetchWithCacheSilent(
         `${BASE_URL}/tv/${tvId}/season/${seasonNumber}?api_key=${API_KEY}`
     );
+    return details ? { ...details, episodes: playableEpisodes(details.episodes, { allowUndated: false }) } : null;
 };
 
 export const getRecommendations = async (id, type) => {
@@ -93,9 +97,9 @@ export const getWatchProviders = async (id, type) => {
 };
 
 export const getTVDetailsWithAiring = async (id) => {
-    return fetchWithCache(
+    return normalizeSeries(await fetchWithCache(
         `${BASE_URL}/tv/${id}?api_key=${API_KEY}`
-    );
+    ));
 };
 
 export const discoverMedia = async (type = "movie", page = 1, genreId = null, includeAdult = false, year = null) => {

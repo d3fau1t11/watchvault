@@ -7,15 +7,8 @@ import { BarChart3, TrendingUp, Clock, Library } from "lucide-react";
 /* Donut + legend read from the same array, so slice N and legend row N can
    never drift apart. Ordered to stay distinguishable at 10px swatch size. */
 const CHART_COLORS = [
-    "#E50914", // red
-    "#3B82F6", // blue
-    "#22C55E", // green
-    "#F5A524", // amber
-    "#8B5CF6", // purple
-    "#EC4899", // pink
-    "#06B6D4", // cyan
-    "#F97316", // orange
-    "#6B6B78"  // grey
+    "#dfbb74", "#91aee8", "#7bbca1", "#cf9d82", "#b09bd4",
+    "#d6a0b6", "#80b7bf", "#c8c18f", "#8a8d98"
 ];
 
 function Stats() {
@@ -56,6 +49,7 @@ function Stats() {
         const watchingList = [];
 
         vaultItems.forEach(item => {
+            if (item.type !== 'movie' && item.hasEpisodes === false) return;
             if (item.type === 'movie') {
                 if (item.status === 'Completed') totalMinutes += 120;
                 else if (item.status === 'Watching') {
@@ -135,11 +129,12 @@ function Stats() {
         <div className="page container">
             <div className="page-header">
                 <div className="page-heading">
+                    <span className="eyebrow">YOUR WATCHING JOURNEY</span>
                     <h1 className="page-title">
-                        <BarChart3 size={28} /> Vault Statistics
+                        <BarChart3 size={28} /> Your story in numbers.
                     </h1>
                     <p className="page-subtitle">
-                        Deep-dive tracking analytics, format distribution metrics, and watchlist watchtime reports.
+                        Every title, every episode, every hour. See how your collection comes together.
                     </p>
                 </div>
             </div>

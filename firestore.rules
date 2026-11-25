@@ -1,0 +1,39 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owner(uid) { return request.auth != null && request.auth.uid == uid; }
+    function recordedRead(uid, notification) {
+      let event = getAfter(/databases/$(database)/documents/users/$(uid)/notificationEvents/$(request.resource.data.lastReadAction)).data;
+      return event.userId == uid && notification in event.notificationIds && event.occurredAt == request.time;
+    }
+    match /vault/{item} {
+      allow read, delete: if owner(resource.data.userId);
+      allow create: if owner(request.resource.data.userId);
+      allow update: if owner(resource.data.userId) && request.resource.data.userId == resource.data.userId;
+    }
+    match /users/{uid}/notifications/{notification} {
+      allow read, delete: if owner(uid);
+      allow create: if owner(uid) && request.resource.data.userId == uid
+        && request.resource.data.read == false && request.resource.data.readAt == null
+        && request.resource.data.createdAt == request.time;
+      allow update: if owner(uid) && resource.data.userId == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt', 'lastReadAction'])
+        && request.resource.data.read == true && request.resource.data.readAt == request.time
+        && recordedRead(uid, notification);
+    }
+    match /users/{uid}/notificationBaselines/{baseline} {
+      allow read, delete: if owner(uid);
+      allow create, update: if owner(uid) && request.resource.data.userId == uid
+        && request.resource.data.seasonNumbers is list;
+    }
+    match /users/{uid}/notificationEvents/{event} {
+      allow read, delete: if owner(uid);
+      allow create: if owner(uid) && request.resource.data.userId == uid
+        && request.resource.data.action in ['mark_read', 'mark_all_read']
+        && request.resource.data.notificationIds is list
+        && request.resource.data.notificationIds.size() <= 499
+        && request.resource.data.occurredAt == request.time;
+      allow update: if false;
+    }
+  }
+}

@@ -1,10 +1,13 @@
-import { useState, useEffect, useMemo, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useVault } from "../context/VaultContext";
 import { addToVault } from "../services/firestoreService";
 import { getTrending, discoverMedia } from "../services/tmdbApi";
 import { getTrendingAnime, convertAnilistToTmdbFormat } from "../services/anilistApi";
-import { Shuffle as ShuffleIcon, Sparkles, Star, Plus, Info, Check, RefreshCw, Library, Compass, AlertCircle } from "lucide-react";
+import { Shuffle as ShuffleIcon, Sparkles, Plus, Info, Check, RefreshCw, Library, Compass, AlertCircle } from "lucide-react";
+import { useNavigate } from 'react-router-dom';
+import ShuffleAnimation from '../components/ShuffleAnimation';
+import StarRating from '../components/StarRating';
 import toast from "react-hot-toast";
 
 const MediaModal = lazy(() => import("../components/MediaModal"));
@@ -43,7 +46,7 @@ const TYPE_OPTIONS = [
 function Shuffle() {
     const { currentUser } = useAuth();
     const { vaultItems, isInVault, loading: vaultLoading } = useVault();
-    const [source, setSource] = useState("watchlist"); // watchlist or external
+    const [source, setSource] = useState(currentUser ? "watchlist" : "external"); // watchlist or external
     const [typeFilter, setTypeFilter] = useState("all"); // all, movie, tv, anime
     const [categoryFilter, setCategoryFilter] = useState("all"); // all, or specific string
     const [yearFilter, setYearFilter] = useState("all"); // all, or specific year
@@ -51,7 +54,25 @@ function Shuffle() {
 
     const [shuffling, setShuffling] = useState(false);
     const [shuffledItem, setShuffledItem] = useState(null);
-    const [spinningPoster, setSpinningPoster] = useState(null);
+    const [reelItems, setReelItems] = useState([]);
+    const shuffleTimer = useRef(null);
+    const shuffleBusy = useRef(false);
+    const mounted = useRef(true);
+    const finalChoice = useRef(null);
+    const navigate = useNavigate();
+    useEffect(() => {
+        mounted.current = true;
+        return () => { mounted.current = false; clearTimeout(shuffleTimer.current); };
+    }, []);
+
+    const finishShuffle = useCallback(() => {
+        if (!mounted.current || !finalChoice.current) return;
+        clearTimeout(shuffleTimer.current);
+        setShuffledItem(finalChoice.current);
+        finalChoice.current = null;
+        setShuffling(false);
+        shuffleBusy.current = false;
+    }, []);
     const [selectedMedia, setSelectedMedia] = useState(null);
 
     // List of fallback cycle posters (trending covers) to spin when source is empty or external
@@ -126,22 +147,23 @@ function Shuffle() {
     const watchlistEmpty = source === "watchlist" && watchlistPool.length === 0;
 
     const handleShuffle = async () => {
-        if (shuffling) return;
+        if (shuffleBusy.current) return;
+        shuffleBusy.current = true;
+        setReelItems([]);
 
         if (source === "watchlist") {
             const pool = watchlistPool;
 
             if (pool.length === 0) {
                 toast.error("No items in your watchlist match the current filters.");
+                shuffleBusy.current = false;
                 return;
             }
 
             const chosen = pool[Math.floor(Math.random() * pool.length)];
 
-            // Run slots animation
-            // Combine current pool with fallback cycle posters to make the spin more diverse
-            const spinPool = pool.length > 5 ? pool : [...pool, ...trendingCyclePosters.map(p => ({ poster_path: p }))];
-            runSpinningAnimation(spinPool, chosen);
+            // Animate only real candidates from this watchlist.
+            runSpinningAnimation(pool, chosen);
         } else {
             // Shuffle from external discover API
             setShuffling(true);
@@ -200,16 +222,19 @@ function Shuffle() {
                 if (!chosen) {
                     toast.error("Failed to find any matching external media. Try changing filters.");
                     setShuffling(false);
+                    shuffleBusy.current = false;
                     return;
                 }
 
                 // Run slots animation
-                runSpinningAnimation(trendingCyclePosters.map(p => ({ poster_path: p })), chosen);
+                if (mounted.current) runSpinningAnimation(trendingCyclePosters.map(p => ({ poster_path: p })), chosen);
 
             } catch (err) {
+                if (!mounted.current) return;
                 console.error("External shuffle error:", err);
                 toast.error("Network error while trying to fetch suggestions.");
                 setShuffling(false);
+                shuffleBusy.current = false;
             }
         }
     };
@@ -217,30 +242,22 @@ function Shuffle() {
     const runSpinningAnimation = (spinPool, finalSelected) => {
         setShuffling(true);
         setShuffledItem(null);
-        let count = 0;
-        const maxCycles = 15;
-        const interval = setInterval(() => {
-            const randomItem = spinPool[Math.floor(Math.random() * spinPool.length)];
-            const poster = randomItem?.poster || randomItem?.poster_path;
-            if (poster) {
-                setSpinningPoster(poster.startsWith("http") ? poster : `https://image.tmdb.org/t/p/w342${poster}`);
-            }
-            count++;
-            if (count >= maxCycles) {
-                clearInterval(interval);
-                setShuffling(false);
-                setShuffledItem(finalSelected);
-                setSpinningPoster(null);
-            }
-        }, 100);
+        finalChoice.current = finalSelected;
+        const pool = spinPool.length ? spinPool : [finalSelected];
+        setReelItems([...Array.from({ length: 18 }, () => pool[Math.floor(Math.random() * pool.length)]), finalSelected]);
+        const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        clearTimeout(shuffleTimer.current);
+        shuffleTimer.current = setTimeout(finishShuffle, reduced ? 0 : 2400);
     };
 
     const handleAddShuffledToVault = async (item) => {
+        if (!currentUser) { navigate('/login', { state: { from: '/shuffle' } }); return; }
         const loadingToast = toast.loading(`Adding "${item.title || item.name}" to Vault...`);
         const status = "Plan to Watch";
 
         const normalizedMedia = {
-            id: item.id,
+            id: item.tmdbId || item.id,
+            ...(item.type ? { type: item.type } : {}),
             title: item.title || item.name,
             name: item.title || item.name,
             media_type: item.media_type || (item.title ? 'movie' : 'tv'),
@@ -286,11 +303,12 @@ function Shuffle() {
         <div className="page container shuffle-page">
             <div className="page-header page-header--center">
                 <div className="page-heading">
+                    <span className="eyebrow">A LITTLE CHANCE. A GREAT WATCH.</span>
                     <h1 className="page-title">
-                        <ShuffleIcon size={28} /> Vault Randomizer
+                        <ShuffleIcon size={28} /> Leave it to chance.
                     </h1>
                     <p className="page-subtitle">
-                        Can't decide what to watch next? Let the Vault shuffle one for you.
+                        Pick from your watchlist or discover something new. We’ll take care of the decision.
                     </p>
                 </div>
             </div>
@@ -307,6 +325,8 @@ function Shuffle() {
                                 type="button"
                                 className={`segmented-btn${source === value ? ' segmented-btn--active' : ''}`}
                                 aria-pressed={source === value}
+                                disabled={shuffling || (value === 'watchlist' && !currentUser)}
+                                title={value === 'watchlist' && !currentUser ? 'Sign in to shuffle your watchlist' : undefined}
                                 onClick={() => {
                                     setSource(value);
                                     setCategoryFilter("all"); // Reset category filter
@@ -328,6 +348,7 @@ function Shuffle() {
                                     type="button"
                                     className={`segmented-btn${typeFilter === value ? ' segmented-btn--active' : ''}`}
                                     aria-pressed={typeFilter === value}
+                                    disabled={shuffling}
                                     onClick={() => setTypeFilter(value)}
                                 >
                                     {label}
@@ -340,6 +361,7 @@ function Shuffle() {
                         <label className="field-label" htmlFor="shuffleCategory">Category / genre</label>
                         <select
                             id="shuffleCategory"
+                            disabled={shuffling}
                             value={categoryFilter}
                             onChange={(e) => setCategoryFilter(e.target.value)}
                             className="select select--lg"
@@ -356,6 +378,7 @@ function Shuffle() {
                             <label className="field-label" htmlFor="shuffleYear">Year</label>
                             <select
                                 id="shuffleYear"
+                                disabled={shuffling}
                                 value={yearFilter}
                                 onChange={(e) => setYearFilter(e.target.value)}
                                 className="select select--lg"
@@ -373,6 +396,7 @@ function Shuffle() {
                     <div className="checkbox-row shuffle-config__check">
                         <input
                             type="checkbox"
+                            disabled={shuffling}
                             className="checkbox"
                             id="excludeWatchedCheckbox"
                             checked={excludeWatched}
@@ -424,20 +448,7 @@ function Shuffle() {
             {/* Shuffle Screen / Results */}
             <div className="shuffle-stage">
                 {shuffling && (
-                    <div className="shuffle-reel shuffling-container-active">
-                        {spinningPoster ? (
-                            <img
-                                src={spinningPoster}
-                                alt=""
-                                className="shuffle-reel__poster shuffling-poster-active"
-                            />
-                        ) : (
-                            <ShuffleIcon size={44} className="shuffle-reel__icon spinner-icon" />
-                        )}
-                        <div className="shuffle-reel__caption">
-                            {source === "watchlist" ? "Cycling your watchlist…" : "Cycling trending titles…"}
-                        </div>
-                    </div>
+                    <ShuffleAnimation items={reelItems} source={source} onFinish={finishShuffle} />
                 )}
 
                 {!shuffling && shuffledItem && (
@@ -462,7 +473,7 @@ function Shuffle() {
                                     )}
                                     {shuffledItem.vote_average > 0 && (
                                         <span className="pill pill--star">
-                                            <Star size={12} fill="currentColor" /> {shuffledItem.vote_average.toFixed(1)}
+                                            <StarRating value={shuffledItem.vote_average} label="Community rating" />
                                         </span>
                                     )}
                                 </div>

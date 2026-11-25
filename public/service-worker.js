@@ -1,24 +1,39 @@
-const CACHE_NAME = 'watchvault-shell-v1';
+const CACHE_NAME = 'watchvault-shell-v5';
 const API_CACHE_NAME = 'watchvault-tmdb-api-v1';
 
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/Vault.ico',
-  '/static/js/bundle.js',
-  '/static/js/main.chunk.js',
-  '/static/js/0.chunk.js'
+  '/favicon.svg',
+  '/favicon.ico',
+  '/favicon-32.png',
+  '/apple-touch-icon.png',
+  '/logo192.png',
+  '/logo512.png',
+  '/avatars/hero.svg',
+  '/avatars/dreamer.svg',
+  '/avatars/detective.svg',
+  '/avatars/explorer.svg',
+  '/avatars/action.svg',
+  '/avatars/ghost.svg'
 ];
 
 // Install event: Pre-cache standard shell assets
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Pre-caching static app shell');
-      return cache.addAll(STATIC_ASSETS).catch((err) => {
-        console.warn('Some assets failed to pre-cache; they will be cached dynamically upon request.', err);
-      });
+    caches.open(CACHE_NAME).then(async (cache) => {
+      await Promise.allSettled(STATIC_ASSETS.map(asset => cache.add(asset)));
+      // Production bundle names contain content hashes. Discover the current
+      // scripts and styles from the shell instead of caching obsolete names.
+      const shell = await cache.match('/index.html');
+      if (shell) {
+        const html = await shell.text();
+        const bundleUrls = Array.from(html.matchAll(/(?:src|href)="([^"\s]+\.(?:js|css)(?:\?[^"\s]*)?)"/g))
+          .map(match => new URL(match[1], self.location.origin))
+          .filter(url => url.origin === self.location.origin);
+        await Promise.allSettled(bundleUrls.map(url => cache.add(url.href)));
+      }
     })
   );
   self.skipWaiting();
@@ -45,6 +60,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // Only intercept HTTP/HTTPS (ignore chrome-extension, etc.)
   if (!event.request.url.startsWith('http')) return;
+  if (event.request.method !== 'GET') return;
 
   const requestUrl = new URL(event.request.url);
 
@@ -80,6 +96,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Cache public app assets and posters, leaving account/auth requests alone.
+  if (requestUrl.origin !== self.location.origin && requestUrl.hostname !== 'image.tmdb.org') return;
+
   // Strategy B: App Shell Assets (Stale-While-Revalidate)
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
@@ -97,7 +116,13 @@ self.addEventListener('fetch', (event) => {
       }
 
       // Return network response for non-cached files, fallback to index.html for React Router routing
-      return fetch(event.request).catch(() => {
+      return fetch(event.request).then(async response => {
+        if (response.status === 200) {
+          const cache = await caches.open(CACHE_NAME);
+          await cache.put(event.request, response.clone());
+        }
+        return response;
+      }).catch(() => {
         if (event.request.mode === 'navigate') {
           return caches.match('/index.html');
         }

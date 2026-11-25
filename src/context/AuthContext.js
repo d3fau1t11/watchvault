@@ -10,9 +10,11 @@ import {
     EmailAuthProvider,
     reauthenticateWithCredential,
     reauthenticateWithPopup,
-    deleteUser
+    deleteUser,
+    linkWithCredential
 } from "firebase/auth";
 import { deleteUserVault } from "../services/firestoreService";
+import { deleteUserNotifications } from '../services/notificationService';
 
 const AuthContext = createContext();
 
@@ -23,6 +25,7 @@ export function useAuth() {
 export function AuthProvider({ children }) {
     const [currentUser, setCurrentUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [, refreshAccount] = useState(0);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -44,6 +47,34 @@ export function AuthProvider({ children }) {
 
     const signupWithEmail = (email, password) => {
         return createUserWithEmailAndPassword(auth, email, password);
+    };
+
+    const createPassword = async (password) => {
+        const user = currentUser;
+        if (!user || !user.email || auth.currentUser?.uid !== user.uid) throw new Error('Sign in again to create a password.');
+        if ((user.providerData || []).some(provider => provider.providerId === 'password')) {
+            const error = new Error('Password sign-in is already enabled.');
+            error.code = 'auth/provider-already-linked';
+            throw error;
+        }
+        if (typeof password !== 'string' || password.length < 8) {
+            const error = new Error('Use at least 8 characters for your password.');
+            error.code = 'auth/weak-password';
+            throw error;
+        }
+        if (!(user.providerData || []).some(provider => provider.providerId === 'google.com')) throw new Error('This account cannot add a password here.');
+
+        // Link a second sign-in method to this same UID, preserving the vault.
+        // Reconfirm Google identity before making a credential change.
+        await reauthenticateWithPopup(user, new GoogleAuthProvider());
+        if (auth.currentUser?.uid !== user.uid) throw new Error('The signed-in account changed. Please try again.');
+        await linkWithCredential(user, EmailAuthProvider.credential(user.email, password));
+        if (auth.currentUser?.uid === user.uid) {
+            // Firebase mutates providerData on the existing User object. Force
+            // context consumers to refresh without cloning that User object.
+            setCurrentUser(auth.currentUser);
+            refreshAccount(revision => revision + 1);
+        }
     };
 
     /* Re-authenticates the current user so sensitive operations (like account
@@ -84,7 +115,9 @@ export function AuthProvider({ children }) {
         if (!currentUser) throw new Error("No signed-in user.");
 
         // 1. Delete all vault documents belonging to this user.
-        await deleteUserVault(currentUser.uid);
+        await deleteUserNotifications(currentUser.uid);
+        const result = await deleteUserVault(currentUser.uid);
+        if (!result.success) throw new Error(result.error || 'Could not delete vault data');
 
         // 2. Delete the Firebase Auth account.
         await deleteUser(currentUser);
@@ -98,6 +131,8 @@ export function AuthProvider({ children }) {
         loginWithGoogle,
         loginWithEmail,
         signupWithEmail,
+        createPassword,
+        passwordEnabled: (currentUser?.providerData || []).some(provider => provider.providerId === 'password'),
         reauthenticate,
         reauthenticateWithPassword,
         logout,

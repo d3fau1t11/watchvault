@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useVault } from "../context/VaultContext";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import {
   LogOut,
   Mail,
@@ -16,52 +16,51 @@ import {
   Check,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import PasswordSettings from '../components/PasswordSettings';
 
-/* Curated animated movie-character avatars (GIPHY sticker-style MP4/GIF URLs).
-   Each entry: a short, looping animated preview suitable for a profile avatar.
-   You can replace these with your own GIPHY/Tenor URLs or user-uploaded files. */
+/* Local animated avatars also work offline and respect reduced motion. */
 const ANIMATED_AVATARS = [
   {
     id: "anime-hero",
     label: "Anime Hero",
     preview:
-      "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdXV4Z3Z6c3B5d2F5aHh5Y3J5d3J5d3J5d3J5d3J5d3J5d3J5d/source.gif",
-    fallback: "https://via.placeholder.com/120x120/FF6B6B/FFFFFF?text=H",
+      "/avatars/hero.svg",
+    fallback: "/avatars/hero.svg",
   },
   {
     id: "anime-girl",
     label: "Anime Girl",
     preview:
-      "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExd3J5d3J5d3J5d3J5d3J5d3J5d3J5d3J5d3J5d3J5d/source.gif",
-    fallback: "https://via.placeholder.com/120x120/4ECDC4/FFFFFF?text=G",
+      "/avatars/dreamer.svg",
+    fallback: "/avatars/dreamer.svg",
   },
   {
     id: "movie-detective",
     label: "Movie Detective",
     preview:
-      "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExd3J5d3J5d3J5d3J5d3J5d3J5d3J5d3J5d3J5d3J5d/source.gif",
-    fallback: "https://via.placeholder.com/120x120/45B7D1/FFFFFF?text=D",
+      "/avatars/detective.svg",
+    fallback: "/avatars/detective.svg",
   },
   {
     id: "movie-sci-fi",
     label: "Sci-Fi Explorer",
     preview:
-      "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExd3J5d3J5d3J5d3J5d3J5d3J5d3J5d3J5d3J5d3J5d/source.gif",
-    fallback: "https://via.placeholder.com/120x120/96CEB4/FFFFFF?text=S",
+      "/avatars/explorer.svg",
+    fallback: "/avatars/explorer.svg",
   },
   {
     id: "movie-action",
     label: "Action Star",
     preview:
-      "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExd3J5d3J5d3J5d3J5d3J5d3J5d3J5d3J5d3J5d3J5d/source.gif",
-    fallback: "https://via.placeholder.com/120x120/FFEEAD/FFFFFF?text=A",
+      "/avatars/action.svg",
+    fallback: "/avatars/action.svg",
   },
   {
     id: "movie-horror",
     label: "Horror Fan",
     preview:
-      "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExd3J5d3J5d3J5d3J5d3J5d3J5d3J5d3J5d3J5d3J5d/source.gif",
-    fallback: "https://via.placeholder.com/120x120/D4A5A5/FFFFFF?text=H",
+      "/avatars/ghost.svg",
+    fallback: "/avatars/ghost.svg",
   },
 ];
 
@@ -171,21 +170,22 @@ function Profile() {
     }
   };
 
-  const providerLabel = usesGoogle ? "Google" : "Email / Password";
+  const hasPassword = currentUser?.providerData?.some(provider => provider.providerId === 'password');
+  const providerLabel = usesGoogle ? (hasPassword ? 'Google + password' : 'Google') : 'Email / Password';
   const displayName = currentUser?.displayName || currentUser?.email?.split("@")[0] || "User";
   const email = currentUser?.email || "";
 
   if (!currentUser) {
-    navigate("/login");
-    return null;
+    return <Navigate to="/login" replace />;
   }
 
   return (
     <div className="page container profile-page">
       <div className="page-header page-header--center">
         <div className="page-heading">
+          <span className="eyebrow">MAKE YOURSELF AT HOME</span>
           <h1 className="page-title">
-            <User size={28} /> Profile
+            <User size={28} /> Your watch space.
           </h1>
           <p className="page-subtitle">
             Manage your account, vault stats, and personal avatar.
@@ -196,14 +196,14 @@ function Profile() {
       {/* Avatar Picker Modal */}
       {showAvatarPicker && (
         <div className="modal-overlay" onClick={() => setShowAvatarPicker(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640, padding: 0 }}>
-            <div className="modal-header" style={{ padding: "var(--sp-6) var(--sp-8) var(--sp-4)" }}>
+          <div className="modal-content avatar-picker-dialog" role="dialog" aria-modal="true" aria-label="Choose your avatar" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
               <h2 className="modal-header__title" style={{ margin: 0, fontSize: "var(--fs-lg)" }}>Choose Your Avatar</h2>
               <p className="modal-header__subtitle" style={{ margin: "var(--sp-2) 0 0", fontSize: "var(--fs-sm)", color: "var(--text-muted)" }}>
                 Pick an animated movie character to represent your profile.
               </p>
             </div>
-            <div className="avatar-picker-grid" style={{ padding: "var(--sp-6) var(--sp-8)" }}>
+            <div className="avatar-picker-grid">
               {ANIMATED_AVATARS.map((avatar) => {
                 const isActive = avatar.preview === avatarUrl || avatar.preview === savedAvatar;
                 return (
@@ -219,6 +219,7 @@ function Profile() {
                         alt={avatar.label}
                         className="avatar-preview"
                         onError={(e) => {
+                          e.target.onerror = null;
                           e.target.src = avatar.fallback;
                         }}
                         loading="lazy"
@@ -234,7 +235,7 @@ function Profile() {
                 );
               })}
             </div>
-            <div className="modal-actions" style={{ padding: "var(--sp-4) var(--sp-8) var(--sp-8)", justifyContent: "flex-end" }}>
+            <div className="modal-actions">
               <button className="btn btn--ghost" onClick={() => setShowAvatarPicker(false)}>
                 Done
               </button>
@@ -255,7 +256,8 @@ function Profile() {
                     alt={displayName}
                     className="avatar-animated"
                     onError={(e) => {
-                      e.target.src = `https://via.placeholder.com/120x120/888888/FFFFFF?text=${displayName.charAt(0).toUpperCase()}`;
+                      e.target.onerror = null;
+                      e.target.src = "/avatars/explorer.svg";
                     }}
                   />
                 ) : (
@@ -273,10 +275,10 @@ function Profile() {
               <div className="profile-identity">
                 <h2 className="profile-name">{displayName}</h2>
                 <p className="profile-email">
-                  <Mail size={14} /> {email}
+                  <Mail size={14} /> <span className="profile-email__address">{email}</span>
                 </p>
                 <span className="profile-provider">
-                  <PlayCircle size={12} /> Signed in with {providerLabel}
+                  <PlayCircle size={12} /> <span>Signed in with {providerLabel}</span>
                 </span>
               </div>
             </div>
@@ -342,6 +344,7 @@ function Profile() {
               </div>
             </div>
 
+            <PasswordSettings />
             <div className="profile-divider">Danger Zone</div>
             <div className="profile-section">
               <div className="profile-section__row">
@@ -366,7 +369,7 @@ function Profile() {
       {/* Delete confirmation dialog */}
       {showDeleteConfirm && (
         <div className="modal-overlay" onClick={() => setShowDeleteConfirm(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content profile-delete-dialog" role="dialog" aria-modal="true" aria-label="Delete account confirmation" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <ShieldAlert size={28} className="modal-header__icon" />
               <h2 className="modal-header__title">Delete Account?</h2>
@@ -394,7 +397,7 @@ function Profile() {
                       value={reauthEmail}
                       onChange={(e) => setReauthEmail(e.target.value)}
                       placeholder="you@example.com"
-                      defaultValue={currentUser?.email || ""}
+                      aria-label="Confirm account email"
                     />
                   </div>
                   <div className="field">
